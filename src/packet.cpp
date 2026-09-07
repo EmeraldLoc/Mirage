@@ -1,6 +1,7 @@
 #include "packet.hpp"
 #include <ostream>
 #include <zlib.h>
+#include <cstdint>
 
 std::array<NetworkPlayer, MAX_PLAYERS> gNetworkPlayers;
 
@@ -8,7 +9,7 @@ inline bool get_bit(uint8_t val, uint8_t num) {
     return (val >> num) & 1;
 }
 
-CoopPacket::CoopPacket(int s, sockaddr_in a, const std::vector<uint8_t> &data) : sock(s), addr(a), raw_data(data) {
+CoopPacket::CoopPacket(socket_t s, sockaddr_in a, const std::vector<uint8_t> &data) : sock(s), addr(a), raw_data(data) {
     pkt_type = raw_data[0];
     offset = 3;
     flags = read_u8();
@@ -132,7 +133,7 @@ void CoopPacket::send_buffer() {
     uLongf destLen = compressed.size();
     if (compress(compressed.data(), &destLen, out_buffer.data(), out_buffer.size()) == Z_OK) {
         compressed.resize(destLen);
-        sendto(sock, compressed.data(), compressed.size(), 0, (struct sockaddr*)&addr, sizeof(addr));
+        sendto(sock, reinterpret_cast<const char*>(compressed.data()), compressed.size(), 0, (struct sockaddr*)&addr, sizeof(addr));
     }
     out_buffer.clear();
 }

@@ -1,9 +1,17 @@
 #include <iostream>
 #include <vector>
-#include <unistd.h>
+#include <zlib.h>
+#include <cstdint>
+#ifdef _WIN32
+#define WIN32_LEAN_AND_MEAN
+#include <winsock2.h>
+#include <ws2tcpip.h>
+#undef WIN32_LEAN_AND_MEAN
+#else
 #include <arpa/inet.h>
 #include <sys/socket.h>
-#include <zlib.h>
+#include <unistd.h>
+#endif
 #include "packet.hpp"
 
 class UDPLobbyServer {
@@ -23,6 +31,14 @@ private:
 
 public:
     UDPLobbyServer(int p) : port(p) {
+#ifdef _WIN32
+        WSADATA wsaData;
+        int res = WSAStartup(MAKEWORD(2, 2), &wsaData);
+        if (res != 0) {
+            std::cerr << "WSAStartup failed: " << res << std::endl;
+            exit(1);
+        }
+#endif
         sock = socket(AF_INET, SOCK_DGRAM, 0);
         if (sock < 0) {
             std::cerr << "Failed to create socket." << std::endl;
@@ -30,7 +46,7 @@ public:
         }
 
         int opt = 1;
-        setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
+        setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, reinterpret_cast<const char*>(&opt), sizeof(opt));
     }
 
     void start() {
@@ -54,7 +70,7 @@ public:
         socklen_t client_len = sizeof(client_addr);
 
         while (true) {
-            ssize_t received = recvfrom(sock, buffer, sizeof(buffer), 0, (struct sockaddr*)&client_addr, &client_len);
+            ssize_t received = recvfrom(sock, reinterpret_cast<char*>(buffer), sizeof(buffer), 0, (struct sockaddr*)&client_addr, &client_len);
             
             if (received > 0) {
                 std::vector<uint8_t> decompressed = decompress_data(buffer, received);
@@ -67,7 +83,12 @@ public:
     }
 
     ~UDPLobbyServer() {
-        close(sock);
+        if (sock != INVALID_SOCKET) {
+            closesocket(sock);
+        }
+#ifdef _WIN32
+        WSACleanup();
+#endif
     }
 };
 

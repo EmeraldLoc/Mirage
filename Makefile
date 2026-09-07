@@ -12,7 +12,7 @@ ifeq ($(ASAN),1)
 endif
 
 ifeq ($(OS),Windows_NT)
-    LDFLAGS += -static
+    LDFLAGS += -lws2_32 -static
 endif
 
 SOURCES := $(wildcard $(addsuffix /*.cpp,$(DIRECTORIES)))

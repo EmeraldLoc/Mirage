@@ -5,8 +5,24 @@
 #include <string>
 #include <cstring>
 #include <array>
+#include <cstdint>
+#ifdef _WIN32
+#define WIN32_LEAN_AND_MEAN
+#include <winsock2.h>
+#include <ws2tcpip.h>
+#undef WIN32_LEAN_AND_MEAN
+typedef SOCKET socket_t;
+typedef int socklen_t;
+#else
 #include <sys/socket.h>
 #include <netinet/in.h>
+#include <arpa/inet.h>
+#include <unistd.h>
+typedef int socket_t;
+#define INVALID_SOCKET -1
+#define SOCKET_ERROR -1
+#define closesocket close
+#endif
 
 #define PACKET_LENGTH 3000
 #define PACKET_DESTINATION_BROADCAST ((uint8_t)-1)
@@ -115,7 +131,7 @@ extern std::array<NetworkPlayer, MAX_PLAYERS> gNetworkPlayers;
 
 class CoopPacket {
 private:
-    int sock;
+    socket_t sock;
     sockaddr_in addr;
     std::vector<uint8_t> raw_data;
     std::vector<uint8_t> out_buffer;
@@ -138,7 +154,7 @@ public:
     int16_t level_num = 0;
     uint8_t area_index = 0;
 
-    CoopPacket(int s, sockaddr_in a, const std::vector<uint8_t> &data);
+    CoopPacket(socket_t s, sockaddr_in a, const std::vector<uint8_t> &data);
 
     uint8_t read_u8();
     uint16_t read_u16();

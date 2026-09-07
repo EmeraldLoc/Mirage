@@ -177,6 +177,7 @@ public:
     void write_str(const std::string &text, size_t length);
 
     void send_buffer();
+    void send_buffer_to_all();
     void packet_init(uint8_t p_type, bool reliable = false, uint8_t level_match_type = PLMT_NONE, bool ordered = false);
     
     void handle();

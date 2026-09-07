@@ -17,6 +17,15 @@ inline bool sockaddr_in_equal(const sockaddr_in &a, const sockaddr_in &b) {
            a.sin_addr.s_addr == b.sin_addr.s_addr;
 }
 
+inline NetworkPlayer *get_network_player_from_addr(const sockaddr_in &a) {
+    for (int i = 0; i < MAX_PLAYERS; i++) {
+        if (sockaddr_in_equal(a, gNetworkPlayerSockets[i])) {
+            return &gNetworkPlayers[i];
+        }
+    }
+    return nullptr;
+}
+
 CoopPacket::CoopPacket(socket_t s, sockaddr_in a, const std::vector<uint8_t> &data) : sock(s), addr(a), raw_data(data) {
     pkt_type = raw_data[0];
     offset = 3;
@@ -171,6 +180,34 @@ void CoopPacket::send_buffer() {
         compressed.resize(destLen);
         sendto(sock, reinterpret_cast<const char*>(compressed.data()), compressed.size(), 0, (struct sockaddr*)&addr, sizeof(addr));
     }
+    out_buffer.clear();
+}
+
+void CoopPacket::send_buffer_to_all() {
+    if (out_buffer.empty()) return;
+
+    uint32_t hash_val = 0;
+    int byte_pos = 0;
+
+    for (uint8_t b : out_buffer) {
+        hash_val ^= ((uint32_t)b << (8 * byte_pos));
+        byte_pos = (byte_pos + 1) % 4;
+    }
+
+    write_u32(hash_val);
+
+    std::vector<uint8_t> compressed(compressBound(out_buffer.size()));
+    uLongf destLen = compressed.size();
+    if (compress(compressed.data(), &destLen, out_buffer.data(), out_buffer.size()) == Z_OK) {
+        compressed.resize(destLen);
+
+        for (int i = 1; i < MAX_PLAYERS; i++) {
+            if (!gNetworkPlayers[i].connected && sockaddr_in_equal(addr, gNetworkPlayerSockets[i])) continue;
+
+            sendto(sock, reinterpret_cast<const char*>(compressed.data()), compressed.size(), 0, (struct sockaddr*)&gNetworkPlayerSockets[i], sizeof(gNetworkPlayerSockets[i]));
+        }
+    }
+
     out_buffer.clear();
 }
 
@@ -329,7 +366,25 @@ void CoopPacket::handle() {
             write_u8(globalIndex);
             write_f64(timestamp);
 
+            std::cout << "Ping from id " << (int)globalIndex << std::endl;
+
             send_buffer();
+            break;
+        }
+        case PACKET_CHANGE_LEVEL: {
+            int16_t courseNum = read_s16();
+            int16_t actNum = read_s16();
+            int16_t levelNum = read_s16();
+            int16_t areaIndex = read_s16();
+
+            NetworkPlayer *np = get_network_player_from_addr(addr);
+
+            std::cout << "Change Level from id " << (int)np->globalIndex << std::endl;
+
+            np->currCourseNum = courseNum;
+            np->currActNum = actNum;
+            np->currLevelNum = levelNum;
+            np->currAreaIndex = areaIndex;
             break;
         }
         case PACKET_LEVEL_AREA_INFORM: {
@@ -344,6 +399,8 @@ void CoopPacket::handle() {
 
             NetworkPlayer *np = &gNetworkPlayers[globalIndex];
 
+            std::cout << "Area inform from id " << (int)globalIndex << std::endl;
+
             np->currLevelAreaSeqId = seq;
             np->currLevelSyncValid = levelSyncValid;
             np->currAreaSyncValid = areaSyncValid;
@@ -352,9 +409,23 @@ void CoopPacket::handle() {
             np->currActNum = actNum;
             np->currLevelNum = levelNum;
             np->currAreaIndex = areaIndex;
+
+            packet_init(PACKET_LEVEL_AREA_INFORM, true, PLMT_NONE);
+            write_u16(seq);
+            write_u8(globalIndex);
+            write_s16(courseNum);
+            write_s16(actNum);
+            write_s16(levelNum);
+            write_s16(areaIndex);
+            write_u8(levelSyncValid);
+            write_u8(areaSyncValid);
+            send_buffer_to_all();
         }
         case PACKET_LEAVING: {
             uint8_t globalIndex = read_u8();
+            packet_init(PACKET_LEAVING, true, PLMT_NONE);
+            write_u8(globalIndex);
+            send_buffer_to_all();
             if (globalIndex < MAX_PLAYERS) {
                 std::cout << "Player disconnected: " << (int)globalIndex << std::endl;
                 gNetworkPlayers[globalIndex].connected = false;
@@ -372,6 +443,7 @@ void CoopPacket::handle() {
                 memset(gNetworkPlayers[globalIndex].palette.colors, 0x0, 24);
                 gNetworkPlayers[globalIndex].name = "";
                 gNetworkPlayers[globalIndex].discordId = "";
+                memset(&gNetworkPlayerSockets[globalIndex], 0x0, sizeof(sockaddr_in));
             }
             break;
         }

@@ -1,4 +1,5 @@
 #include "packet.hpp"
+#include <algorithm>
 #include <ostream>
 #include <zlib.h>
 #include <cstdint>
@@ -8,6 +9,12 @@ std::array<sockaddr_in, MAX_PLAYERS> gNetworkPlayerSockets;
 
 inline bool get_bit(uint8_t val, uint8_t num) {
     return (val >> num) & 1;
+}
+
+inline bool sockaddr_in_equal(const sockaddr_in &a, const sockaddr_in &b) {
+    return a.sin_family == b.sin_family &&
+           a.sin_port == b.sin_port &&
+           a.sin_addr.s_addr == b.sin_addr.s_addr;
 }
 
 CoopPacket::CoopPacket(socket_t s, sockaddr_in a, const std::vector<uint8_t> &data) : sock(s), addr(a), raw_data(data) {
@@ -75,6 +82,22 @@ int64_t CoopPacket::read_s64() {
     return val;
 }
 
+double CoopPacket::read_f64() {
+    uint64_t bits = read_u64();
+
+    double val;
+    memcpy(&val, &bits, sizeof(val));
+    return val;
+}
+
+float CoopPacket::read_f32() {
+    uint32_t bits = read_u32();
+
+    float val;
+    memcpy(&val, &bits, sizeof(val));
+    return val;
+}
+
 std::string CoopPacket::read_str(size_t length) {
     std::string val(raw_data.begin() + offset, raw_data.begin() + offset + length);
     offset += length;
@@ -110,6 +133,18 @@ void CoopPacket::write_s64(int64_t val) {
     for (int i = 0; i < 8; ++i) {
         out_buffer.push_back((val >> (8 * i)) & 0xFF);
     }
+}
+
+void CoopPacket::write_f64(double val) {
+    uint64_t bits;
+    memcpy(&bits, &val, sizeof(bits));
+    write_u64(bits);
+}
+
+void CoopPacket::write_f32(float val) {
+    uint32_t bits;
+    memcpy(&bits, &val, sizeof(bits));
+    write_u32(bits);
 }
 
 void CoopPacket::write_str(const std::string &text, size_t length) {
@@ -186,6 +221,13 @@ void CoopPacket::handle() {
             break;
         }
         case PACKET_JOIN_REQUEST: {
+            bool exists = std::find_if(gNetworkPlayerSockets.begin(), gNetworkPlayerSockets.end(),
+                [&](const sockaddr_in &address) {
+                    return sockaddr_in_equal(address, addr);
+                }) != gNetworkPlayerSockets.end();
+            if (exists) {
+                break;
+            }
             std::string version = read_str(128);
             uint8_t model = read_u8(); // model
             PlayerPalette palette;
@@ -206,7 +248,8 @@ void CoopPacket::handle() {
                     connectedCount++;
                 }
             }
-            
+
+            std::cout << "Connections: " << (int)connectedCount << std::endl;
             if (!globalIndex) {
                 std::cout << "No available global indices, server full, dropping request from " << name << std::endl;
                 break;
@@ -239,7 +282,7 @@ void CoopPacket::handle() {
             send_buffer();
 
             np->connected = true;
-            np->globalIndex = 1;
+            np->globalIndex = globalIndex;
             np->name = name;
             np->modelIndex = model;
             memcpy(np->palette.colors, palette.colors, 24);
@@ -258,7 +301,7 @@ void CoopPacket::handle() {
             packet_init(PACKET_NETWORK_PLAYERS, true, PLMT_NONE);
             write_u8(connectedCount);
             for (const auto &player : gNetworkPlayers) {
-                if (!player.connected) continue;
+                if (!player.connected || sockaddr_in_equal(addr, gNetworkPlayerSockets[player.globalIndex])) continue;
                 std::cout << "Sent player " << player.name << "  " << (int)player.globalIndex << std::endl;
                 write_u8(player.type);
                 write_u8(player.globalIndex);
@@ -277,6 +320,38 @@ void CoopPacket::handle() {
             }
             send_buffer();
             break;
+        }
+        case PACKET_PING: {
+            uint8_t globalIndex = read_u8();
+            double timestamp = read_f64();
+
+            packet_init(PACKET_PONG, false, PLMT_NONE);
+            write_u8(globalIndex);
+            write_f64(timestamp);
+
+            send_buffer();
+            break;
+        }
+        case PACKET_LEVEL_AREA_INFORM: {
+            uint16_t seq = read_u16();
+            uint8_t globalIndex = read_u8();
+            int16_t courseNum = read_s16();
+            int16_t actNum = read_s16();
+            int16_t levelNum = read_s16();
+            int16_t areaIndex = read_s16();
+            uint8_t levelSyncValid = read_u8();
+            uint8_t areaSyncValid = read_u8();
+
+            NetworkPlayer *np = &gNetworkPlayers[globalIndex];
+
+            np->currLevelAreaSeqId = seq;
+            np->currLevelSyncValid = levelSyncValid;
+            np->currAreaSyncValid = areaSyncValid;
+
+            np->currCourseNum = courseNum;
+            np->currActNum = actNum;
+            np->currLevelNum = levelNum;
+            np->currAreaIndex = areaIndex;
         }
         case PACKET_LEAVING: {
             uint8_t globalIndex = read_u8();

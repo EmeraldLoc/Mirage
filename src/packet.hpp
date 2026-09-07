@@ -162,6 +162,8 @@ public:
     uint32_t read_u32();
     uint64_t read_u64();
     int64_t read_s64();
+    double read_f64();
+    float read_f32();
     std::string read_str(size_t length);
 
     void write_u8(uint8_t val);
@@ -170,6 +172,8 @@ public:
     void write_u32(uint32_t val);
     void write_u64(uint64_t val);
     void write_s64(int64_t val);
+    void write_f64(double val);
+    void write_f32(float val);
     void write_str(const std::string &text, size_t length);
 
     void send_buffer();

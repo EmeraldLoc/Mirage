@@ -351,7 +351,9 @@ void CoopPacket::handle() {
                 write_u8(player.currAreaSyncValid);
                 write_s64(player.networkId);
                 write_u8(player.modelIndex);
-                write_u64(0); write_u64(0); write_u64(0); // palette
+                for (int i = 0; i < 24; i++) {
+                    write_u8(player.palette.colors[i]);
+                }
                 write_str(player.name, MAX_CONFIG_STRING);
                 write_str(player.discordId, 64);
             }

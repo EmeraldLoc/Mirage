@@ -1,3 +1,4 @@
+#include <cstring>
 #include <iostream>
 #include <vector>
 #include <zlib.h>
@@ -96,6 +97,7 @@ int main() {
     gNetworkPlayers[0].globalIndex = 0;
     gNetworkPlayers[0].connected = true;
     gNetworkPlayers[0].name = "PeakServer";
+    memset(gNetworkPlayers[0].palette.colors, 0xff, 24);
     UDPLobbyServer lobby(1282);
     lobby.start();
     return 0;

@@ -4,6 +4,7 @@
 #include <cstdint>
 
 std::array<NetworkPlayer, MAX_PLAYERS> gNetworkPlayers;
+std::array<sockaddr_in, MAX_PLAYERS> gNetworkPlayerSockets;
 
 inline bool get_bit(uint8_t val, uint8_t num) {
     return (val >> num) & 1;
@@ -187,15 +188,38 @@ void CoopPacket::handle() {
         case PACKET_JOIN_REQUEST: {
             std::string version = read_str(128);
             uint8_t model = read_u8(); // model
-            read_u64(); read_u64(); read_u64(); // palette
+            PlayerPalette palette;
+            for (int i = 0; i < 24; i++) {
+                palette.colors[i] = read_u8();
+            }
             std::string name = read_str(64);
 
             std::cout << "Received join request:\n  Version: " << version.c_str() << "\n  Name: " << name.c_str() << std::endl;
 
+            uint8_t globalIndex = 0;
+            uint8_t connectedCount = 0;
+            for (uint8_t i = 1; i < MAX_PLAYERS; i++) {
+                if (!gNetworkPlayers[i].connected) {
+                    globalIndex = i;
+                    break;
+                } else {
+                    connectedCount++;
+                }
+            }
+            
+            if (!globalIndex) {
+                std::cout << "No available global indices, server full, dropping request from " << name << std::endl;
+                break;
+            }
+
+            NetworkPlayer *np = &gNetworkPlayers[globalIndex];
+
+            gNetworkPlayerSockets[globalIndex] = addr;
+
             packet_init(PACKET_JOIN, true, PLMT_NONE);
 
             write_str(version, 128);
-            write_u8(1);   // global index
+            write_u8(globalIndex);   // global index
             write_s16(1);  // savefile num
 
             write_u8(1);   // player interactions
@@ -214,10 +238,11 @@ void CoopPacket::handle() {
             
             send_buffer();
 
-            gNetworkPlayers[1].connected = true;
-            gNetworkPlayers[1].globalIndex = 1;
-            gNetworkPlayers[1].name = name;
-            gNetworkPlayers[1].modelIndex = model;
+            np->connected = true;
+            np->globalIndex = 1;
+            np->name = name;
+            np->modelIndex = model;
+            memcpy(np->palette.colors, palette.colors, 24);
             break;
         }
         case PACKET_NETWORK_PLAYERS_REQUEST: {
@@ -258,6 +283,20 @@ void CoopPacket::handle() {
             if (globalIndex < MAX_PLAYERS) {
                 std::cout << "Player disconnected: " << (int)globalIndex << std::endl;
                 gNetworkPlayers[globalIndex].connected = false;
+                gNetworkPlayers[globalIndex].type = 0;
+                gNetworkPlayers[globalIndex].globalIndex = 0;
+                gNetworkPlayers[globalIndex].currLevelAreaSeqId = 0;
+                gNetworkPlayers[globalIndex].currCourseNum = 0;
+                gNetworkPlayers[globalIndex].currActNum = 0;
+                gNetworkPlayers[globalIndex].currLevelNum = 0;
+                gNetworkPlayers[globalIndex].currAreaIndex = 0;
+                gNetworkPlayers[globalIndex].currLevelSyncValid = 0;
+                gNetworkPlayers[globalIndex].currAreaSyncValid = 0;
+                gNetworkPlayers[globalIndex].networkId = 0;
+                gNetworkPlayers[globalIndex].modelIndex = 0;
+                memset(gNetworkPlayers[globalIndex].palette.colors, 0x0, 24);
+                gNetworkPlayers[globalIndex].name = "";
+                gNetworkPlayers[globalIndex].discordId = "";
             }
             break;
         }

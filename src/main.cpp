@@ -3,17 +3,8 @@
 #include <vector>
 #include <zlib.h>
 #include <cstdint>
-#ifdef _WIN32
-#define WIN32_LEAN_AND_MEAN
-#include <winsock2.h>
-#include <ws2tcpip.h>
-#undef WIN32_LEAN_AND_MEAN
-#else
-#include <arpa/inet.h>
-#include <sys/socket.h>
-#include <unistd.h>
-#endif
 #include "packet.hpp"
+#include "network_player.hpp"
 
 class UDPLobbyServer {
 private:

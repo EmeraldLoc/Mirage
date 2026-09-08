@@ -1,29 +1,12 @@
 #include "packet.hpp"
+#include "network_player.hpp"
 #include <algorithm>
 #include <ostream>
 #include <zlib.h>
 #include <cstdint>
 
-std::array<NetworkPlayer, MAX_PLAYERS> gNetworkPlayers;
-std::array<sockaddr_in, MAX_PLAYERS> gNetworkPlayerSockets;
-
 inline bool get_bit(uint8_t val, uint8_t num) {
     return (val >> num) & 1;
-}
-
-inline bool sockaddr_in_equal(const sockaddr_in &a, const sockaddr_in &b) {
-    return a.sin_family == b.sin_family &&
-           a.sin_port == b.sin_port &&
-           a.sin_addr.s_addr == b.sin_addr.s_addr;
-}
-
-inline NetworkPlayer *get_network_player_from_addr(const sockaddr_in &a) {
-    for (int i = 0; i < MAX_PLAYERS; i++) {
-        if (sockaddr_in_equal(a, gNetworkPlayerSockets[i])) {
-            return &gNetworkPlayers[i];
-        }
-    }
-    return nullptr;
 }
 
 CoopPacket::CoopPacket(socket_t s, sockaddr_in a, const std::vector<uint8_t> &data) : sock(s), addr(a), raw_data(data) {
@@ -176,7 +159,7 @@ void CoopPacket::send_buffer() {
 
     std::vector<uint8_t> compressed(compressBound(out_buffer.size()));
     uLongf destLen = compressed.size();
-    if (compress(compressed.data(), &destLen, out_buffer.data(), out_buffer.size()) == Z_OK) {
+    if (compress2(compressed.data(), &destLen, out_buffer.data(), out_buffer.size(), Z_BEST_COMPRESSION) == Z_OK) {
         compressed.resize(destLen);
         sendto(sock, reinterpret_cast<const char*>(compressed.data()), compressed.size(), 0, (struct sockaddr*)&addr, sizeof(addr));
     }
@@ -263,6 +246,7 @@ void CoopPacket::handle() {
                     return sockaddr_in_equal(address, addr);
                 }) != gNetworkPlayerSockets.end();
             if (exists) {
+                std::cout << "Received join request from already joined socket, ignoring" << std::endl;
                 break;
             }
             std::string version = read_str(128);
@@ -339,7 +323,7 @@ void CoopPacket::handle() {
             write_u8(connectedCount);
             for (const auto &player : gNetworkPlayers) {
                 if (!player.connected || sockaddr_in_equal(addr, gNetworkPlayerSockets[player.globalIndex])) continue;
-                std::cout << "Sent player " << player.name << "  " << (int)player.globalIndex << std::endl;
+                std::cout << "Sent player '" << player.name << "'  " << (int)player.globalIndex << std::endl;
                 write_u8(player.type);
                 write_u8(player.globalIndex);
                 write_u16(player.currLevelAreaSeqId);

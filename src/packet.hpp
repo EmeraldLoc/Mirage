@@ -6,29 +6,12 @@
 #include <cstring>
 #include <array>
 #include <cstdint>
-#ifdef _WIN32
-#define WIN32_LEAN_AND_MEAN
-#include <winsock2.h>
-#include <ws2tcpip.h>
-#undef WIN32_LEAN_AND_MEAN
-typedef SOCKET socket_t;
-typedef int socklen_t;
-#else
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
-#include <unistd.h>
-typedef int socket_t;
-#define INVALID_SOCKET -1
-#define SOCKET_ERROR -1
-#define closesocket close
-#endif
+#include "socket.hpp"
 
 #define PACKET_LENGTH 3000
 #define PACKET_DESTINATION_BROADCAST ((uint8_t)-1)
 #define PACKET_DESTINATION_SERVER ((uint8_t)-2)
 #define MAX_CONFIG_STRING 64
-#define MAX_PLAYERS 16
 
 enum PacketType {
     PACKET_ACK,
@@ -105,29 +88,6 @@ enum PacketLevelMatchType {
     PLMT_LEVEL
 };
 
-struct PlayerPalette {
-    uint8_t colors[24];
-};
-
-struct NetworkPlayer {
-    bool connected = false;
-    uint8_t type = 0;
-    uint8_t globalIndex = 0;
-    uint16_t currLevelAreaSeqId = 0;
-    int16_t currCourseNum = 0;
-    int16_t currActNum = 0;
-    int16_t currLevelNum = 0;
-    int16_t currAreaIndex = 0;
-    uint8_t currLevelSyncValid = 0;
-    uint8_t currAreaSyncValid = 0;
-    int64_t networkId = 0;
-    uint8_t modelIndex = 0;
-    PlayerPalette palette{};
-    std::string name;
-    std::string discordId;
-};
-
-extern std::array<NetworkPlayer, MAX_PLAYERS> gNetworkPlayers;
 
 class CoopPacket {
 private:

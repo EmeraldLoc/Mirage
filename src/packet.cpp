@@ -436,6 +436,34 @@ void CoopPacket::handle_internal() {
             np->name = name;
             np->modelIndex = model;
             memcpy(np->palette.colors, palette.colors, 24);
+
+            connectedCount = 0;
+            for (const auto &player : gNetworkPlayers) {
+                if (player.connected) {
+                    connectedCount++;
+                }
+            }
+
+            packet_init(PACKET_NETWORK_PLAYERS, true, PLMT_NONE);
+            write_u8(connectedCount);
+            write_u8(np->type);
+            write_u8(np->globalIndex);
+            write_u16(np->currLevelAreaSeqId);
+            write_s16(np->currCourseNum);
+            write_s16(np->currActNum);
+            write_s16(np->currLevelNum);
+            write_s16(np->currAreaIndex);
+            write_u8(np->currLevelSyncValid);
+            write_u8(np->currAreaSyncValid);
+            write_s64(np->networkId);
+            write_u8(np->modelIndex);
+            for (int i = 0; i < 24; i++) {
+                write_u8(np->palette.colors[i]);
+            }
+            write_str(np->name, 64);
+            write_str(np->discordId, 64);
+
+            send_buffer_to_all();
             break;
         }
         case PACKET_NETWORK_PLAYERS_REQUEST: {

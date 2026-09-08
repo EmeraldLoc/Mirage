@@ -6,6 +6,8 @@
 #include <cstring>
 #include <array>
 #include <cstdint>
+#include <chrono>
+#include <map>
 #include "socket.hpp"
 
 #define PACKET_LENGTH 3000
@@ -78,7 +80,6 @@ enum PacketType {
     PACKET_COMMAND,
     PACKET_MODERATOR,
 
-    ///
     PACKET_CUSTOM = 255,
 };
 
@@ -98,6 +99,8 @@ private:
     size_t offset = 3;
 public:
     uint8_t pkt_type;
+    uint16_t seq_id = 0;
+    bool is_reliable = false;
     uint8_t flags;
     bool level_area_must_match;
     bool request_broadcast;
@@ -138,7 +141,26 @@ public:
 
     void send_buffer();
     void send_buffer_to_all();
-    void packet_init(uint8_t p_type, bool reliable = false, uint8_t level_match_type = PLMT_NONE, bool ordered = false);
+    void packet_init(uint8_t p_type, bool reliable = false, uint8_t level_match_type = PLMT_NONE);
     
+    void set_ordered_data();
     void handle();
+    void handle_internal();
+    void process_ordered_and_handle();
 };
+
+struct ReliablePacket {
+    uint16_t seq_id;
+    socket_t sock;
+    sockaddr_in addr;
+    std::vector<uint8_t> compressed_data;
+    std::chrono::steady_clock::time_point last_send;
+    int send_attempts;
+};
+
+struct OrderedState {
+    uint16_t process_seq_id = 1;
+    std::map<uint16_t, CoopPacket> queued_packets;
+};
+
+void update_network_reliables();

@@ -39,6 +39,16 @@ public:
 
         int opt = 1;
         setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, reinterpret_cast<const char*>(&opt), sizeof(opt));
+
+#ifdef _WIN32
+        DWORD timeout = 10;
+        setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, reinterpret_cast<const char*>(&timeout), sizeof(timeout));
+#else
+        struct timeval tv;
+        tv.tv_sec = 0;
+        tv.tv_usec = 10000; // 10ms
+        setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, reinterpret_cast<const char*>(&tv), sizeof(tv));
+#endif
     }
 
     void start() {
@@ -71,6 +81,8 @@ public:
                     pkt.handle();
                 }
             }
+
+            update_network_reliables();
         }
     }
 

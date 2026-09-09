@@ -5,11 +5,12 @@
 #include <cstdint>
 #include "packet.hpp"
 #include "network_player.hpp"
+#include "socket.hpp"
 
-class UDPLobbyServer {
+class CoopLobby {
 private:
     int port;
-    int sock;
+    UDPSocket udp_socket;
 
     std::vector<uint8_t> decompress_data(const uint8_t *data, size_t len) {
         std::vector<uint8_t> dest(65536);
@@ -20,48 +21,10 @@ private:
         }
         return {};
     }
-
 public:
-    UDPLobbyServer(int p) : port(p) {
-#ifdef _WIN32
-        WSADATA wsaData;
-        int res = WSAStartup(MAKEWORD(2, 2), &wsaData);
-        if (res != 0) {
-            std::cerr << "WSAStartup failed: " << res << std::endl;
-            exit(1);
-        }
-#endif
-        sock = socket(AF_INET, SOCK_DGRAM, 0);
-        if (sock < 0) {
-            std::cerr << "Failed to create socket." << std::endl;
-            exit(1);
-        }
-
-        int opt = 1;
-        setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, reinterpret_cast<const char*>(&opt), sizeof(opt));
-
-#ifdef _WIN32
-        DWORD timeout = 10;
-        setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, reinterpret_cast<const char*>(&timeout), sizeof(timeout));
-#else
-        struct timeval tv;
-        tv.tv_sec = 0;
-        tv.tv_usec = 10000; // 10ms
-        setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, reinterpret_cast<const char*>(&tv), sizeof(tv));
-#endif
-    }
+    CoopLobby(int p) : port(p), udp_socket(p) {}
 
     void start() {
-        sockaddr_in server_addr{};
-        server_addr.sin_family = AF_INET;
-        server_addr.sin_addr.s_addr = INADDR_ANY;
-        server_addr.sin_port = htons(port);
-
-        if (bind(sock, (struct sockaddr*)&server_addr, sizeof(server_addr)) < 0) {
-            std::cerr << "Failed to bind to port " << port << std::endl;
-            exit(1);
-        }
-
         std::cout << "Headless lobby listening on UDP port " << port << std::endl;
         run_loop();
     }
@@ -69,15 +32,14 @@ public:
     void run_loop() {
         uint8_t buffer[PACKET_LENGTH];
         sockaddr_in client_addr;
-        socklen_t client_len = sizeof(client_addr);
 
         while (true) {
-            ssize_t received = recvfrom(sock, reinterpret_cast<char*>(buffer), sizeof(buffer), 0, (struct sockaddr*)&client_addr, &client_len);
+            ssize_t received = udp_socket.receive(buffer, sizeof(buffer), client_addr);
             
             if (received > 0) {
                 std::vector<uint8_t> decompressed = decompress_data(buffer, received);
                 if (!decompressed.empty()) {
-                    CoopPacket pkt(sock, client_addr, decompressed);
+                    CoopPacket pkt(udp_socket.get_sock(), client_addr, decompressed);
                     pkt.handle();
                 }
             }
@@ -85,23 +47,21 @@ public:
             update_network_reliables();
         }
     }
-
-    ~UDPLobbyServer() {
-        if (sock != INVALID_SOCKET) {
-            closesocket(sock);
-        }
-#ifdef _WIN32
-        WSACleanup();
-#endif
-    }
 };
 
 int main() {
+    gNetworkPlayers[0].type = 2;
     gNetworkPlayers[0].globalIndex = 0;
     gNetworkPlayers[0].connected = true;
     gNetworkPlayers[0].name = "PeakServer";
+    gNetworkPlayers[0].currLevelNum = 16;
+    gNetworkPlayers[0].currAreaIndex = 1;
+    //gNetworkPlayers[0].currAreaSyncValid = true;
+    //gNetworkPlayers[0].currLevelSyncValid = true;
     memset(gNetworkPlayers[0].palette.colors, 0xff, 24);
-    UDPLobbyServer lobby(1282);
+    
+    CoopLobby lobby(1282);
     lobby.start();
+    
     return 0;
 }

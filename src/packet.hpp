@@ -14,6 +14,7 @@
 #define PACKET_DESTINATION_BROADCAST ((uint8_t)-1)
 #define PACKET_DESTINATION_SERVER ((uint8_t)-2)
 #define MAX_CONFIG_STRING 64
+#define MAX_CHAT_MSG_LENGTH 500
 
 enum PacketType {
     PACKET_ACK,

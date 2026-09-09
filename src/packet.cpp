@@ -285,22 +285,23 @@ void CoopPacket::packet_init(uint8_t p_type, bool reliable, uint8_t level_match_
     write_u8(init_flags);
     write_u8(PACKET_DESTINATION_BROADCAST);
 
+    NetworkPlayer *local_np = &gNetworkPlayers[0];
     if (sOrderedPackets) {
-        uint8_t local_global_index = gNetworkPlayers[0].globalIndex; 
+        uint8_t local_global_index = local_np->globalIndex; 
         write_u8(sOrderedPackets ? local_global_index : 0); 
         write_u16(sOrderedPackets ? sCurrentOrderedGroupId : 0); 
         write_u16(0);
     }
     
     if (level_match_type == PLMT_AREA) {
-        write_u8(0); 
-        write_u8(0); 
-        write_s16(0); 
-        write_u8(0); 
+        write_u8(local_np->currCourseNum);
+        write_u8(local_np->currActNum);
+        write_s16(local_np->currLevelNum);
+        write_u8(local_np->currAreaIndex);
     } else if (level_match_type == PLMT_LEVEL) {
-        write_u8(0); 
-        write_u8(0); 
-        write_s16(0); 
+        write_u8(local_np->currCourseNum);
+        write_u8(local_np->currActNum);
+        write_s16(local_np->currLevelNum);
     }
 
     this->is_reliable = reliable;
@@ -432,6 +433,7 @@ void CoopPacket::handle_internal() {
             send_buffer();
 
             np->connected = true;
+            //np->type = 3;
             np->globalIndex = globalIndex;
             np->name = name;
             np->modelIndex = model;
@@ -562,6 +564,20 @@ void CoopPacket::handle_internal() {
             write_s16(areaIndex);
             write_u8(levelSyncValid);
             write_u8(areaSyncValid);
+            send_buffer_to_all();
+            break;
+        }
+        case PACKET_CHAT: {
+            uint8_t globalIndex = read_u8();
+            uint16_t msgLen = read_u16();
+            if (msgLen >= MAX_CHAT_MSG_LENGTH - 1) { msgLen = MAX_CHAT_MSG_LENGTH - 1; }
+            std::string msg = read_str(msgLen);
+            std::cout << "Message from " << gNetworkPlayers[globalIndex].name << ": " << msg << std::endl;
+
+            packet_init(PACKET_CHAT, true, PLMT_NONE);
+            write_u8(globalIndex);
+            write_u16(msgLen);
+            write_str(msg, msgLen);
             send_buffer_to_all();
             break;
         }

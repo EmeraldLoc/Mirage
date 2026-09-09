@@ -1,5 +1,6 @@
 #include "packet.hpp"
 #include "network.hpp"
+#include "config.hpp"
 #include <algorithm>
 #include <ostream>
 #include <zlib.h>
@@ -277,7 +278,7 @@ void CoopPacket::handleInternal() {
             packetOrderedBegin();
 
             packetInit(PACKET_MOD_LIST, true, PLMT_NONE);
-            write<std::string>(version, 128);
+            write<std::string>(gServerConfig.version, 128);
             write<uint16_t>(0);
             sendBuffer();
 
@@ -329,21 +330,21 @@ void CoopPacket::handleInternal() {
 
             packetInit(PACKET_JOIN, true, PLMT_NONE);
 
-            write<std::string>(version, 128);
+            write<std::string>(gServerConfig.version, 128);
             write<uint8_t>(globalIndex);
 
-            write<int16_t>(1); // savefile num
-            write<uint8_t>(1); // player interactions
-            write<uint8_t>(0); // bouncy level bounds
-            write<uint8_t>(0); // knock strength
-            write<uint8_t>(0); // stay after star
-            write<uint8_t>(1); // skip intro
-            write<uint8_t>(0); // bubble
-            write<uint8_t>(0); // headless
-            write<uint8_t>(1); // nametags
-            write<uint8_t>(16); // max players
-            write<uint8_t>(0); // pause anywhere
-            write<uint8_t>(0); // pvp type
+            write<int16_t>(gServerConfig.savefileIndex);
+            write<uint8_t>(gServerConfig.playerInteractions);
+            write<uint8_t>(gServerConfig.bouncyBounds);
+            write<uint8_t>(gServerConfig.knockStrength);
+            write<uint8_t>(gServerConfig.starStaying);
+            write<uint8_t>(gServerConfig.skipIntro);
+            write<uint8_t>(gServerConfig.bubbleDeath);
+            write<uint8_t>(gServerConfig.headless);
+            write<uint8_t>(gServerConfig.nametags);
+            write<uint8_t>(gServerConfig.maxPlayers);
+            write<uint8_t>(gServerConfig.pauseAnywhere);
+            write<uint8_t>(0);
             
             // eeprom
             for (int i = 0; i < 512; i++) write<uint8_t>(255);

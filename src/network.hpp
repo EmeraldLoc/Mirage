@@ -34,4 +34,4 @@ extern std::array<NetworkPlayer, MAX_PLAYERS> gNetworkPlayers;
 extern std::array<sockaddr_in, MAX_PLAYERS> gNetworkPlayerSockets;
 
 extern NetworkPlayer *getNetworkPlayerFromAddr(const sockaddr_in &a);
-void updateNetwork();
+extern void updateNetwork();

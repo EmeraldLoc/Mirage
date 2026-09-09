@@ -88,7 +88,6 @@ private:
     std::vector<uint8_t> rawData;
     std::vector<uint8_t> outBuffer;
     size_t offset = 3;
-
 public:
     uint8_t pktType;
     uint16_t seqId = 0;
@@ -190,5 +189,5 @@ struct OrderedState {
 
 extern std::list<ReliablePacket> gReliablePackets;
 
-void packetOrderedBegin();
-void packetOrderedEnd();
+extern void packetOrderedBegin();
+extern void packetOrderedEnd();

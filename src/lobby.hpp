@@ -10,7 +10,6 @@ private:
     UDPSocket udpSocket;
 
     std::vector<uint8_t> decompressData(const uint8_t *data, size_t len);
-
 public:
     CoopLobby(int p);
 

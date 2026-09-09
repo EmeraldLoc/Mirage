@@ -3,7 +3,7 @@ TARGET := CoopFakeLobby
 BUILD_DIR := build
 CXX := g++
 ASAN := 0
-CXXFLAGS := -O3
+CXXFLAGS := -O3 -Iinclude
 LDFLAGS := -lz
 
 ifeq ($(ASAN),1)
@@ -33,4 +33,4 @@ $(BUILD_DIR):
 clean:
 	rm -rf $(BUILD_DIR)
 
-.PHONY: all clean copyFiles
+.PHONY: all clean

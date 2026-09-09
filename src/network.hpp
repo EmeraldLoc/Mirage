@@ -33,4 +33,5 @@ struct NetworkPlayer {
 extern std::array<NetworkPlayer, MAX_PLAYERS> gNetworkPlayers;
 extern std::array<sockaddr_in, MAX_PLAYERS> gNetworkPlayerSockets;
 
-extern NetworkPlayer *get_network_player_from_addr(const sockaddr_in &a);
+extern NetworkPlayer *getNetworkPlayerFromAddr(const sockaddr_in &a);
+void updateNetwork();

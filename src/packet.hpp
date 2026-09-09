@@ -8,6 +8,7 @@
 #include <cstdint>
 #include <chrono>
 #include <map>
+#include <list>
 #include "socket.hpp"
 
 #define PACKET_LENGTH 3000
@@ -39,11 +40,9 @@ enum PacketType {
     PACKET_SAVE_REMOVE_FLAG,
     PACKET_NETWORK_PLAYERS,
     PACKET_DEATH,
-
     PACKET_PING,
     PACKET_PONG,
     PACKET_UNUSED_23,
-
     PACKET_CHANGE_LEVEL,
     PACKET_CHANGE_AREA,
     PACKET_LEVEL_AREA_REQUEST,
@@ -57,9 +56,7 @@ enum PacketType {
     PACKET_LEVEL_AREA_INFORM,
     PACKET_LEVEL_RESPAWN_INFO,
     PACKET_CHANGE_WATER_LEVEL,
-
     PACKET_PLAYER_SETTINGS,
-
     PACKET_MOD_LIST_REQUEST,
     PACKET_MOD_LIST,
     PACKET_DOWNLOAD_REQUEST,
@@ -67,20 +64,14 @@ enum PacketType {
     PACKET_MOD_LIST_ENTRY,
     PACKET_MOD_LIST_FILE,
     PACKET_MOD_LIST_DONE,
-
     PACKET_LUA_SYNC_TABLE_REQUEST,
     PACKET_LUA_SYNC_TABLE,
-
     PACKET_NETWORK_PLAYERS_REQUEST,
-
     PACKET_REQUEST_FAILED,
-
     PACKET_LUA_CUSTOM,
     PACKET_LUA_CUSTOM_BYTESTRING,
-
     PACKET_COMMAND,
     PACKET_MODERATOR,
-
     PACKET_CUSTOM = 255,
 };
 
@@ -94,58 +85,59 @@ class CoopPacket {
 private:
     socket_t sock;
     sockaddr_in addr;
-    std::vector<uint8_t> raw_data;
-    std::vector<uint8_t> out_buffer;
+    std::vector<uint8_t> rawData;
+    std::vector<uint8_t> outBuffer;
     size_t offset = 3;
+
 public:
-    uint8_t pkt_type;
-    uint16_t seq_id = 0;
-    bool is_reliable = false;
+    uint8_t pktType;
+    uint16_t seqId = 0;
+    bool isReliable = false;
     uint8_t flags;
-    bool level_area_must_match;
-    bool request_broadcast;
-    bool is_ordered;
-    bool level_must_match;
-    uint8_t dest_global_id;
+    bool levelAreaMustMatch;
+    bool requestBroadcast;
+    bool isOrdered;
+    bool levelMustMatch;
+    uint8_t destGlobalId;
 
-    uint8_t ordered_from_global_id = 0;
-    uint16_t ordered_group_id = 0;
-    uint16_t ordered_seq_id = 0;
+    uint8_t orderedFromGlobalId = 0;
+    uint16_t orderedGroupId = 0;
+    uint16_t orderedSeqId = 0;
 
-    uint8_t course_num = 0;
-    uint8_t act_num = 0;
-    int16_t level_num = 0;
-    uint8_t area_index = 0;
+    uint8_t courseNum = 0;
+    uint8_t actNum = 0;
+    int16_t levelNum = 0;
+    uint8_t areaIndex = 0;
 
     CoopPacket(socket_t s, sockaddr_in a, const std::vector<uint8_t> &data);
 
     template<typename T>
     T read(size_t length = 0) {
         if constexpr(std::is_same_v<T, std::string>) {
-            if (offset >= raw_data.size()) return "";
-            size_t actual_len = std::min(length, raw_data.size() - offset);
-            std::string val(raw_data.begin() + offset, raw_data.begin() + offset + actual_len);
+            if (offset >= rawData.size()) return "";
+            size_t actualLen = std::min(length, rawData.size() - offset);
+            std::string val(rawData.begin() + offset, rawData.begin() + offset + actualLen);
             offset += length;
-            if (offset > raw_data.size()) offset = raw_data.size();
+            if (offset > rawData.size()) offset = rawData.size();
             return val;
         } else {
             constexpr size_t sz = sizeof(T);
-            if (offset + sz > raw_data.size()) {
-                offset = raw_data.size();
+            if (offset + sz > rawData.size()) {
+                offset = rawData.size();
                 return T(0);
             }
-            uint64_t raw_val = 0;
+            uint64_t rawVal = 0;
             for (size_t i = 0; i < sz; ++i) {
-                raw_val |= ((uint64_t)raw_data[offset + i] << (8 * i));
+                rawVal |= ((uint64_t)rawData[offset + i] << (8 * i));
             }
             offset += sz;
 
             if constexpr(std::is_floating_point_v<T>) {
                 T val;
-                std::memcpy(&val, &raw_val, sz);
+                std::memcpy(&val, &rawVal, sz);
                 return val;
             } else {
-                return static_cast<T>(raw_val);
+                return static_cast<T>(rawVal);
             }
         }
     }
@@ -154,46 +146,49 @@ public:
     void write(const T &val, size_t length = 0) {
         if constexpr(std::is_same_v<T, std::string>) {
             for (size_t i = 0; i < length; ++i) {
-                if (i < val.length()) out_buffer.push_back(val[i]);
-                else out_buffer.push_back(0x00);
+                if (i < val.length()) outBuffer.push_back(val[i]);
+                else outBuffer.push_back(0x00);
             }
         } else {
             constexpr size_t sz = sizeof(T);
-            uint64_t raw_val = 0;
+            uint64_t rawVal = 0;
             if constexpr(std::is_floating_point_v<T>) {
-                std::memcpy(&raw_val, &val, sz);
+                std::memcpy(&rawVal, &val, sz);
             } else {
-                raw_val = static_cast<uint64_t>(val);
+                rawVal = static_cast<uint64_t>(val);
             }
             for (size_t i = 0; i < sz; ++i) {
-                out_buffer.push_back((raw_val >> (8 * i)) & 0xFF);
+                outBuffer.push_back((rawVal >> (8 * i)) & 0xFF);
             }
         }
     }
 
-    void send_buffer();
-    void send_buffer_to_all();
-    void packet_init(uint8_t p_type, bool reliable = false, uint8_t level_match_type = PLMT_NONE);
+    void sendBuffer();
+    void sendBufferToAll();
+    void packetInit(uint8_t pType, bool reliable = false, uint8_t levelMatchType = PLMT_NONE);
     
-    void set_ordered_data();
+    void setOrderedData();
     void handle();
-    void forward_and_ignore(uint8_t pkt_type, bool reliable=true, uint8_t level_match_type=PLMT_NONE);
-    void handle_internal();
-    void process_ordered_and_handle();
+    void forwardAndIgnore(uint8_t pType, bool reliable=true, uint8_t levelMatchType=PLMT_NONE);
+    void handleInternal();
+    void processOrderedAndHandle();
 };
 
 struct ReliablePacket {
-    uint16_t seq_id;
+    uint16_t seqId;
     socket_t sock;
     sockaddr_in addr;
-    std::vector<uint8_t> compressed_data;
-    std::chrono::steady_clock::time_point last_send;
-    int send_attempts;
+    std::vector<uint8_t> compressedData;
+    std::chrono::steady_clock::time_point lastSend;
+    int sendAttempts;
 };
 
 struct OrderedState {
-    uint16_t process_seq_id = 1;
-    std::map<uint16_t, CoopPacket> queued_packets;
+    uint16_t processSeqId = 1;
+    std::map<uint16_t, CoopPacket> queuedPackets;
 };
 
-void update_network_reliables();
+extern std::list<ReliablePacket> gReliablePackets;
+
+void packetOrderedBegin();
+void packetOrderedEnd();

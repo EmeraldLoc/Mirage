@@ -21,7 +21,7 @@ typedef int socket_t;
 #define closesocket close
 #endif
 
-bool sockaddr_in_equal(const sockaddr_in &a, const sockaddr_in &b);
+bool sockaddrInEqual(const sockaddr_in &a, const sockaddr_in &b);
 
 class UDPSocket {
 private:
@@ -30,6 +30,6 @@ public:
     UDPSocket(int port);
     ~UDPSocket();
     
-    int get_sock() const;
-    ssize_t receive(uint8_t *buffer, size_t max_len, sockaddr_in &client_addr);
+    int getSock() const;
+    ssize_t receive(uint8_t *buffer, size_t maxLen, sockaddr_in &clientAddr);
 };

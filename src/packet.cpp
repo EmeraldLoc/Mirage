@@ -50,141 +50,30 @@ CoopPacket::CoopPacket(socket_t s, sockaddr_in a, const std::vector<uint8_t> &da
     pkt_type = raw_data[0];
     seq_id = raw_data[1] | (raw_data[2] << 8);
     offset = 3;
-    flags = read_u8();
+    flags = read<uint8_t>();
     
     level_area_must_match = get_bit(flags, 0);
     request_broadcast = get_bit(flags, 1);
     is_ordered = get_bit(flags, 2);
     level_must_match = get_bit(flags, 3);
 
-    dest_global_id = read_u8();
+    dest_global_id = read<uint8_t>();
 
     if (is_ordered) {
-        ordered_from_global_id = read_u8();
-        ordered_group_id = read_u16();
-        ordered_seq_id = read_u16();
+        ordered_from_global_id = read<uint8_t>();
+        ordered_group_id = read<uint16_t>();
+        ordered_seq_id = read<uint16_t>();
     }
 
     if (level_area_must_match) {
-        course_num = read_u8();
-        act_num = read_u8();
-        level_num = read_s16();
-        area_index = read_u8();
+        course_num = read<uint8_t>();
+        act_num = read<uint8_t>();
+        level_num = read<int16_t>();
+        area_index = read<uint8_t>();
     } else if (level_must_match) {
-        course_num = read_u8();
-        act_num = read_u8();
-        level_num = read_s16();
-    }
-}
-
-uint8_t CoopPacket::read_u8() { 
-    if (offset >= raw_data.size()) return 0;
-    return raw_data[offset++]; 
-}
-
-uint16_t CoopPacket::read_u16() {
-    if (offset + 2 > raw_data.size()) { offset = raw_data.size(); return 0; }
-    uint16_t val = raw_data[offset] | (raw_data[offset+1] << 8);
-    offset += 2;
-    return val;
-}
-
-int16_t CoopPacket::read_s16() {
-    return (int16_t)read_u16();
-}
-
-uint32_t CoopPacket::read_u32() {
-    if (offset + 4 > raw_data.size()) { offset = raw_data.size(); return 0; }
-    uint32_t val = raw_data[offset] | (raw_data[offset+1] << 8) | (raw_data[offset+2] << 16) | (raw_data[offset+3] << 24);
-    offset += 4;
-    return val;
-}
-
-uint64_t CoopPacket::read_u64() {
-    if (offset + 8 > raw_data.size()) { offset = raw_data.size(); return 0; }
-    uint64_t val = 0;
-    for (int i = 0; i < 8; ++i) {
-        val |= ((uint64_t)raw_data[offset+i] << (8 * i));
-    }
-    offset += 8;
-    return val;
-}
-
-int64_t CoopPacket::read_s64() {
-    return (int64_t)read_u64();
-}
-
-double CoopPacket::read_f64() {
-    uint64_t bits = read_u64();
-    double val;
-    memcpy(&val, &bits, sizeof(val));
-    return val;
-}
-
-float CoopPacket::read_f32() {
-    uint32_t bits = read_u32();
-    float val;
-    memcpy(&val, &bits, sizeof(val));
-    return val;
-}
-
-std::string CoopPacket::read_str(size_t length) {
-    if (offset >= raw_data.size()) return "";
-    size_t actual_len = std::min(length, raw_data.size() - offset);
-    std::string val(raw_data.begin() + offset, raw_data.begin() + offset + actual_len);
-    offset += length;
-    if (offset > raw_data.size()) offset = raw_data.size();
-    return val;
-}
-
-void CoopPacket::write_u8(uint8_t val) { 
-    out_buffer.push_back(val); 
-}
-
-void CoopPacket::write_u16(uint16_t val) {
-    out_buffer.push_back(val & 0xFF);
-    out_buffer.push_back((val >> 8) & 0xFF);
-}
-
-void CoopPacket::write_s16(int16_t val) { 
-    write_u16((uint16_t)(val)); 
-}
-
-void CoopPacket::write_u32(uint32_t val) {
-    out_buffer.push_back(val & 0xFF);
-    out_buffer.push_back((val >> 8) & 0xFF);
-    out_buffer.push_back((val >> 16) & 0xFF);
-    out_buffer.push_back((val >> 24) & 0xFF);
-}
-
-void CoopPacket::write_u64(uint64_t val) {
-    for (int i = 0; i < 8; ++i) {
-        out_buffer.push_back((val >> (8 * i)) & 0xFF);
-    }
-}
-
-void CoopPacket::write_s64(int64_t val) {
-    for (int i = 0; i < 8; ++i) {
-        out_buffer.push_back((val >> (8 * i)) & 0xFF);
-    }
-}
-
-void CoopPacket::write_f64(double val) {
-    uint64_t bits;
-    memcpy(&bits, &val, sizeof(bits));
-    write_u64(bits);
-}
-
-void CoopPacket::write_f32(float val) {
-    uint32_t bits;
-    memcpy(&bits, &val, sizeof(bits));
-    write_u32(bits);
-}
-
-void CoopPacket::write_str(const std::string &text, size_t length) {
-    for (size_t i = 0; i < length; ++i) {
-        if (i < text.length()) out_buffer.push_back(text[i]);
-        else out_buffer.push_back(0x00);
+        course_num = read<uint8_t>();
+        act_num = read<uint8_t>();
+        level_num = read<int16_t>();
     }
 }
 
@@ -201,7 +90,7 @@ void CoopPacket::send_buffer() {
         hash_val ^= ((uint32_t)(b) << (8 * byte_pos));
         byte_pos = (byte_pos + 1) % 4;
     }
-    write_u32(hash_val);
+    write<uint32_t>(hash_val);
 
     std::vector<uint8_t> compressed(compressBound(out_buffer.size()));
     uLongf destLen = compressed.size();
@@ -238,7 +127,7 @@ void CoopPacket::send_buffer_to_all() {
         byte_pos = (byte_pos + 1) % 4;
     }
 
-    write_u32(hash_val);
+    write<uint32_t>(hash_val);
 
     std::vector<uint8_t> compressed(compressBound(out_buffer.size()));
     uLongf destLen = compressed.size();
@@ -280,28 +169,28 @@ void CoopPacket::packet_init(uint8_t p_type, bool reliable, uint8_t level_match_
         if (sNextSeqNum == 0) sNextSeqNum = 1;
     }
 
-    write_u8(p_type);
-    write_u16(current_seq);
-    write_u8(init_flags);
-    write_u8(PACKET_DESTINATION_BROADCAST);
+    write<uint8_t>(p_type);
+    write<uint16_t>(current_seq);
+    write<uint8_t>(init_flags);
+    write<uint8_t>(PACKET_DESTINATION_BROADCAST);
 
     NetworkPlayer *local_np = &gNetworkPlayers[0];
     if (sOrderedPackets) {
         uint8_t local_global_index = local_np->globalIndex; 
-        write_u8(sOrderedPackets ? local_global_index : 0); 
-        write_u16(sOrderedPackets ? sCurrentOrderedGroupId : 0); 
-        write_u16(0);
+        write<uint8_t>(sOrderedPackets ? local_global_index : 0); 
+        write<uint16_t>(sOrderedPackets ? sCurrentOrderedGroupId : 0); 
+        write<uint16_t>(0);
     }
     
     if (level_match_type == PLMT_AREA) {
-        write_u8(local_np->currCourseNum);
-        write_u8(local_np->currActNum);
-        write_s16(local_np->currLevelNum);
-        write_u8(local_np->currAreaIndex);
+        write<uint8_t>(local_np->currCourseNum);
+        write<uint8_t>(local_np->currActNum);
+        write<int16_t>(local_np->currLevelNum);
+        write<uint8_t>(local_np->currAreaIndex);
     } else if (level_match_type == PLMT_LEVEL) {
-        write_u8(local_np->currCourseNum);
-        write_u8(local_np->currActNum);
-        write_s16(local_np->currLevelNum);
+        write<uint8_t>(local_np->currCourseNum);
+        write<uint8_t>(local_np->currActNum);
+        write<int16_t>(local_np->currLevelNum);
     }
 
     this->is_reliable = reliable;
@@ -315,7 +204,7 @@ void CoopPacket::handle() {
     if (seq_id != 0 && pkt_type != PACKET_ACK) {
         CoopPacket ack_pkt(sock, addr, {});
         ack_pkt.packet_init(PACKET_ACK, false, PLMT_NONE);
-        ack_pkt.write_u16(seq_id);
+        ack_pkt.write<uint16_t>(seq_id);
         ack_pkt.send_buffer();
     }
 
@@ -344,24 +233,53 @@ void CoopPacket::process_ordered_and_handle() {
     }
 }
 
+void CoopPacket::forward_and_ignore(uint8_t pkt_type, bool reliable, uint8_t level_match_type) {
+    int32_t size = raw_data.size();
+    std::vector<uint8_t> data(size);
+    for (int i = 0; i < size; i++) {
+        data[i] = read<uint8_t>();
+    }
+
+    packet_init(pkt_type, reliable, level_match_type);
+    for (int i = 0; i < size; i++) {
+        write<uint8_t>(data[i]);
+    }
+    send_buffer_to_all();
+}
+
 void CoopPacket::handle_internal() {
     switch (pkt_type) {
         case PACKET_ACK: {
-            uint16_t acked_seq = read_u16();
-            gReliablePackets.remove_if([this, acked_seq](const ReliablePacket& p) {
+            uint16_t acked_seq = read<uint16_t>();
+            gReliablePackets.remove_if([this, acked_seq](const ReliablePacket &p) {
                 return p.seq_id == acked_seq && sockaddr_in_equal(p.addr, this->addr);
             });
             break;
         }
+        case PACKET_PLAYER:
+            // todo: should be plmt area
+            forward_and_ignore(PACKET_PLAYER, true, PLMT_NONE);
+            break;
+        case PACKET_OBJECT:
+            // todo: should be plmt area
+            forward_and_ignore(PACKET_OBJECT, true, PLMT_NONE);
+            break;
+        case PACKET_COLLECT_COIN:
+            // todo: should be plmt level
+            forward_and_ignore(PACKET_COLLECT_COIN, true, PLMT_NONE);
+            break;
+        case PACKET_LEVEL_RESPAWN_INFO:
+            forward_and_ignore(PACKET_LEVEL_RESPAWN_INFO, true, PLMT_NONE);
+            break;
         case PACKET_MOD_LIST_REQUEST: {
-            std::string version = read_str(128);
+            std::string version = read<std::string>(128);
             std::cout << "Received mod list request:\n  Version: " << version.c_str() << std::endl;
 
             packet_ordered_begin();
 
             packet_init(PACKET_MOD_LIST, true, PLMT_NONE);
-            write_str(version, 128);
-            write_u16(0); // mod count
+            write<std::string>(version, 128);
+            write<uint16_t>(0);
             send_buffer();
 
             packet_init(PACKET_MOD_LIST_DONE, true, PLMT_NONE);
@@ -380,13 +298,13 @@ void CoopPacket::handle_internal() {
                 std::cout << "Received join request from already joined socket, ignoring" << std::endl;
                 break;
             }
-            std::string version = read_str(128);
-            uint8_t model = read_u8();
+            std::string version = read<std::string>(128);
+            uint8_t model = read<uint8_t>();
             PlayerPalette palette;
             for (int i = 0; i < 24; i++) {
-                palette.colors[i] = read_u8();
+                palette.colors[i] = read<uint8_t>();
             }
-            std::string name = read_str(64);
+            std::string name = read<std::string>(64);
 
             std::cout << "Received join request:\n  Version: " << version.c_str() << "\n  Name: " << name.c_str() << std::endl;
 
@@ -412,58 +330,50 @@ void CoopPacket::handle_internal() {
 
             packet_init(PACKET_JOIN, true, PLMT_NONE);
 
-            write_str(version, 128);
-            write_u8(globalIndex);
+            write<std::string>(version, 128);
+            write<uint8_t>(globalIndex);
 
-            write_s16(1);  // savefile num
-            write_u8(1);   // player interactions
-            write_u8(0);   // bouncy level bounds
-            write_u8(0);   // knock strength
-            write_u8(0);   // stay after star
-            write_u8(1);   // skip intro
-            write_u8(0);   // bubble
-            write_u8(0);   // headless
-            write_u8(1);   // nametags
-            write_u8(16);  // max players
-            write_u8(0);   // pause anywhere
-            write_u8(0);   // pvp type
+            write<int16_t>(1); // savefile num
+            write<uint8_t>(1); // player interactions
+            write<uint8_t>(0); // bouncy level bounds
+            write<uint8_t>(0); // knock strength
+            write<uint8_t>(0); // stay after star
+            write<uint8_t>(1); // skip intro
+            write<uint8_t>(0); // bubble
+            write<uint8_t>(0); // headless
+            write<uint8_t>(1); // nametags
+            write<uint8_t>(16); // max players
+            write<uint8_t>(0); // pause anywhere
+            write<uint8_t>(0); // pvp type
             
-            for (int i = 0; i < 512; i++) write_u8(0);
+            for (int i = 0; i < 512; i++) write<uint8_t>(0);
             
             send_buffer();
 
             np->connected = true;
-            //np->type = 3;
             np->globalIndex = globalIndex;
             np->name = name;
             np->modelIndex = model;
             memcpy(np->palette.colors, palette.colors, 24);
 
-            connectedCount = 0;
-            for (const auto &player : gNetworkPlayers) {
-                if (player.connected) {
-                    connectedCount++;
-                }
-            }
-
             packet_init(PACKET_NETWORK_PLAYERS, true, PLMT_NONE);
-            write_u8(connectedCount);
-            write_u8(np->type);
-            write_u8(np->globalIndex);
-            write_u16(np->currLevelAreaSeqId);
-            write_s16(np->currCourseNum);
-            write_s16(np->currActNum);
-            write_s16(np->currLevelNum);
-            write_s16(np->currAreaIndex);
-            write_u8(np->currLevelSyncValid);
-            write_u8(np->currAreaSyncValid);
-            write_s64(np->networkId);
-            write_u8(np->modelIndex);
+            write<uint8_t>(1);
+            write<uint8_t>(np->type);
+            write<uint8_t>(np->globalIndex);
+            write<uint16_t>(np->currLevelAreaSeqId);
+            write<int16_t>(np->currCourseNum);
+            write<int16_t>(np->currActNum);
+            write<int16_t>(np->currLevelNum);
+            write<int16_t>(np->currAreaIndex);
+            write<uint8_t>(np->currLevelSyncValid);
+            write<uint8_t>(np->currAreaSyncValid);
+            write<int64_t>(np->networkId);
+            write<uint8_t>(np->modelIndex);
             for (int i = 0; i < 24; i++) {
-                write_u8(np->palette.colors[i]);
+                write<uint8_t>(np->palette.colors[i]);
             }
-            write_str(np->name, 64);
-            write_str(np->discordId, 64);
+            write<std::string>(np->name, 64);
+            write<std::string>(np->discordId, 64);
 
             send_buffer_to_all();
             break;
@@ -479,37 +389,37 @@ void CoopPacket::handle_internal() {
             }
 
             packet_init(PACKET_NETWORK_PLAYERS, true, PLMT_NONE);
-            write_u8(connectedCount);
+            write<uint8_t>(connectedCount);
             for (const auto &player : gNetworkPlayers) {
                 if (!player.connected || sockaddr_in_equal(addr, gNetworkPlayerSockets[player.globalIndex])) continue;
                 std::cout << "Sent player '" << player.name << "'  " << (int)player.globalIndex << std::endl;
-                write_u8(player.type);
-                write_u8(player.globalIndex);
-                write_u16(player.currLevelAreaSeqId);
-                write_s16(player.currCourseNum);
-                write_s16(player.currActNum);
-                write_s16(player.currLevelNum);
-                write_s16(player.currAreaIndex);
-                write_u8(player.currLevelSyncValid);
-                write_u8(player.currAreaSyncValid);
-                write_s64(player.networkId);
-                write_u8(player.modelIndex);
+                write<uint8_t>(player.type);
+                write<uint8_t>(player.globalIndex);
+                write<uint16_t>(player.currLevelAreaSeqId);
+                write<int16_t>(player.currCourseNum);
+                write<int16_t>(player.currActNum);
+                write<int16_t>(player.currLevelNum);
+                write<int16_t>(player.currAreaIndex);
+                write<uint8_t>(player.currLevelSyncValid);
+                write<uint8_t>(player.currAreaSyncValid);
+                write<int64_t>(player.networkId);
+                write<uint8_t>(player.modelIndex);
                 for (int i = 0; i < 24; i++) {
-                    write_u8(player.palette.colors[i]);
+                    write<uint8_t>(player.palette.colors[i]);
                 }
-                write_str(player.name, MAX_CONFIG_STRING);
-                write_str(player.discordId, 64);
+                write<std::string>(player.name, MAX_CONFIG_STRING);
+                write<std::string>(player.discordId, 64);
             }
             send_buffer();
             break;
         }
         case PACKET_PING: {
-            uint8_t globalIndex = read_u8();
-            double timestamp = read_f64();
+            uint8_t globalIndex = read<uint8_t>();
+            double timestamp = read<double>();
 
             packet_init(PACKET_PONG, false, PLMT_NONE);
-            write_u8(globalIndex);
-            write_f64(timestamp);
+            write<uint8_t>(globalIndex);
+            write<double>(timestamp);
 
             std::cout << "Ping from id " << (int)globalIndex << std::endl;
 
@@ -517,10 +427,10 @@ void CoopPacket::handle_internal() {
             break;
         }
         case PACKET_CHANGE_LEVEL: {
-            int16_t courseNum = read_s16();
-            int16_t actNum = read_s16();
-            int16_t levelNum = read_s16();
-            int16_t areaIndex = read_s16();
+            int16_t courseNum = read<int16_t>();
+            int16_t actNum = read<int16_t>();
+            int16_t levelNum = read<int16_t>();
+            int16_t areaIndex = read<int16_t>();
 
             NetworkPlayer *np = get_network_player_from_addr(addr);
             if (np) {
@@ -530,17 +440,29 @@ void CoopPacket::handle_internal() {
                 np->currLevelNum = levelNum;
                 np->currAreaIndex = areaIndex;
             }
+
+            np->currLevelSyncValid = true;
+            np->currAreaSyncValid = true;
+
+            packet_init(PACKET_SYNC_VALID, true, PLMT_NONE);
+            write<int16_t>(courseNum);
+            write<int16_t>(actNum);
+            write<int16_t>(levelNum);
+            write<int16_t>(areaIndex);
+            write<uint8_t>(0);
+            write<uint8_t>(np->globalIndex);
+            send_buffer();
             break;
         }
         case PACKET_LEVEL_AREA_INFORM: {
-            uint16_t seq = read_u16();
-            uint8_t globalIndex = read_u8();
-            int16_t courseNum = read_s16();
-            int16_t actNum = read_s16();
-            int16_t levelNum = read_s16();
-            int16_t areaIndex = read_s16();
-            uint8_t levelSyncValid = read_u8();
-            uint8_t areaSyncValid = read_u8();
+            uint16_t seq = read<uint16_t>();
+            uint8_t globalIndex = read<uint8_t>();
+            int16_t courseNum = read<int16_t>();
+            int16_t actNum = read<int16_t>();
+            int16_t levelNum = read<int16_t>();
+            int16_t areaIndex = read<int16_t>();
+            uint8_t levelSyncValid = read<uint8_t>();
+            uint8_t areaSyncValid = read<uint8_t>();
 
             NetworkPlayer *np = &gNetworkPlayers[globalIndex];
 
@@ -556,38 +478,38 @@ void CoopPacket::handle_internal() {
             np->currAreaIndex = areaIndex;
 
             packet_init(PACKET_LEVEL_AREA_INFORM, true, PLMT_NONE);
-            write_u16(seq);
-            write_u8(globalIndex);
-            write_s16(courseNum);
-            write_s16(actNum);
-            write_s16(levelNum);
-            write_s16(areaIndex);
-            write_u8(levelSyncValid);
-            write_u8(areaSyncValid);
+            write<uint16_t>(seq);
+            write<uint8_t>(globalIndex);
+            write<int16_t>(courseNum);
+            write<int16_t>(actNum);
+            write<int16_t>(levelNum);
+            write<int16_t>(areaIndex);
+            write<uint8_t>(levelSyncValid);
+            write<uint8_t>(areaSyncValid);
             send_buffer_to_all();
             break;
         }
         case PACKET_CHAT: {
-            uint8_t globalIndex = read_u8();
-            uint16_t msgLen = read_u16();
+            uint8_t globalIndex = read<uint8_t>();
+            uint16_t msgLen = read<uint16_t>();
             if (msgLen >= MAX_CHAT_MSG_LENGTH - 1) { msgLen = MAX_CHAT_MSG_LENGTH - 1; }
-            std::string msg = read_str(msgLen);
+            std::string msg = read<std::string>(msgLen);
             std::cout << "Message from " << gNetworkPlayers[globalIndex].name << ": " << msg << std::endl;
 
             packet_init(PACKET_CHAT, true, PLMT_NONE);
-            write_u8(globalIndex);
-            write_u16(msgLen);
-            write_str(msg, msgLen);
+            write<uint8_t>(globalIndex);
+            write<uint16_t>(msgLen);
+            write<std::string>(msg, msgLen);
             send_buffer_to_all();
             break;
         }
         case PACKET_LEAVING: {
-            uint8_t globalIndex = read_u8();
+            uint8_t globalIndex = read<uint8_t>();
             packet_init(PACKET_LEAVING, true, PLMT_NONE);
-            write_u8(globalIndex);
+            write<uint8_t>(globalIndex);
             send_buffer_to_all();
             if (globalIndex < MAX_PLAYERS) {
-                std::cout << "Player disconnected: " << (int)globalIndex << std::endl;
+                std::cout << "Player '" << gNetworkPlayers[globalIndex].name << "' " << "disconnected" << std::endl;
                 gNetworkPlayers[globalIndex].connected = false;
                 gNetworkPlayers[globalIndex].type = 0;
                 gNetworkPlayers[globalIndex].globalIndex = 0;
@@ -629,7 +551,7 @@ void update_network_reliables() {
             it->send_attempts++;
 
             if (it->send_attempts >= 15) {
-                std::cout << "Dropping reliable packet seq " << it->seq_id << ", max attempts reached.\n";
+                std::cout << "Dropping reliable packet seq " << it->seq_id << ", max attempts reached\n";
                 it = gReliablePackets.erase(it);
                 continue;
             }

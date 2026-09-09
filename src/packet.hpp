@@ -90,7 +90,6 @@ enum PacketLevelMatchType {
     PLMT_LEVEL
 };
 
-
 class CoopPacket {
 private:
     socket_t sock;
@@ -120,25 +119,57 @@ public:
 
     CoopPacket(socket_t s, sockaddr_in a, const std::vector<uint8_t> &data);
 
-    uint8_t read_u8();
-    uint16_t read_u16();
-    int16_t read_s16();
-    uint32_t read_u32();
-    uint64_t read_u64();
-    int64_t read_s64();
-    double read_f64();
-    float read_f32();
-    std::string read_str(size_t length);
+    template<typename T>
+    T read(size_t length = 0) {
+        if constexpr(std::is_same_v<T, std::string>) {
+            if (offset >= raw_data.size()) return "";
+            size_t actual_len = std::min(length, raw_data.size() - offset);
+            std::string val(raw_data.begin() + offset, raw_data.begin() + offset + actual_len);
+            offset += length;
+            if (offset > raw_data.size()) offset = raw_data.size();
+            return val;
+        } else {
+            constexpr size_t sz = sizeof(T);
+            if (offset + sz > raw_data.size()) {
+                offset = raw_data.size();
+                return T(0);
+            }
+            uint64_t raw_val = 0;
+            for (size_t i = 0; i < sz; ++i) {
+                raw_val |= ((uint64_t)raw_data[offset + i] << (8 * i));
+            }
+            offset += sz;
 
-    void write_u8(uint8_t val);
-    void write_u16(uint16_t val);
-    void write_s16(int16_t val);
-    void write_u32(uint32_t val);
-    void write_u64(uint64_t val);
-    void write_s64(int64_t val);
-    void write_f64(double val);
-    void write_f32(float val);
-    void write_str(const std::string &text, size_t length);
+            if constexpr(std::is_floating_point_v<T>) {
+                T val;
+                std::memcpy(&val, &raw_val, sz);
+                return val;
+            } else {
+                return static_cast<T>(raw_val);
+            }
+        }
+    }
+
+    template<typename T>
+    void write(const T &val, size_t length = 0) {
+        if constexpr(std::is_same_v<T, std::string>) {
+            for (size_t i = 0; i < length; ++i) {
+                if (i < val.length()) out_buffer.push_back(val[i]);
+                else out_buffer.push_back(0x00);
+            }
+        } else {
+            constexpr size_t sz = sizeof(T);
+            uint64_t raw_val = 0;
+            if constexpr(std::is_floating_point_v<T>) {
+                std::memcpy(&raw_val, &val, sz);
+            } else {
+                raw_val = static_cast<uint64_t>(val);
+            }
+            for (size_t i = 0; i < sz; ++i) {
+                out_buffer.push_back((raw_val >> (8 * i)) & 0xFF);
+            }
+        }
+    }
 
     void send_buffer();
     void send_buffer_to_all();
@@ -146,6 +177,7 @@ public:
     
     void set_ordered_data();
     void handle();
+    void forward_and_ignore(uint8_t pkt_type, bool reliable=true, uint8_t level_match_type=PLMT_NONE);
     void handle_internal();
     void process_ordered_and_handle();
 };

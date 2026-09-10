@@ -3,7 +3,7 @@ TARGET := CoopFakeLobby
 BUILD_DIR := build
 CXX := g++
 ASAN := 0
-CXXFLAGS := -O3 -Iinclude
+CXXFLAGS := -O3 -Iinclude -g
 LDFLAGS := -lz
 
 ifeq ($(ASAN),1)

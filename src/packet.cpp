@@ -260,7 +260,7 @@ void CoopPacket::forwardPacket(uint8_t pType, bool reliable, uint8_t levelMatchT
 }
 
 void CoopPacket::handleInternal() {
-    uint8_t senderGlobalIndex = getNetworkPlayerFromAddr(addr)->globalIndex;
+    uint8_t senderGlobalIndex = getNetworkPlayerFromAddr(addr) ? getNetworkPlayerFromAddr(addr)->globalIndex : 0;
 
     switch (pktType) {
         case PACKET_ACK: {
@@ -299,14 +299,101 @@ void CoopPacket::handleInternal() {
 
             packetInitWrite(PACKET_MOD_LIST, true, PLMT_NONE);
             write<std::string>(gServerConfig.version, 128);
-            write<uint16_t>(0);
+            write<uint16_t>(gServerConfig.mods.size());
             sendBuffer();
 
-            packetInitWrite(PACKET_MOD_LIST_DONE, true, PLMT_NONE);
+            for (uint16_t i = 0; i < gServerConfig.mods.size(); ++i) {
+                CoopMod &mod = gServerConfig.mods[i];
 
+                packetInitWrite(PACKET_MOD_LIST_ENTRY, true, PLMT_NONE);
+                write<uint16_t>(i);
+                uint16_t nameLen = mod.name.size();
+                write<uint16_t>(nameLen);
+                write<std::string>(mod.name, nameLen);
+                write<uint16_t>(0);
+                write<std::string>("", 0);
+                uint16_t pathLen = mod.luaPath.size();
+                write<uint16_t>(pathLen);
+                write<std::string>(mod.luaPath, pathLen);
+                write<uint64_t>(mod.size); 
+                write<uint8_t>(false);
+                write<uint8_t>(true);
+                write<uint8_t>(false);
+                write<uint16_t>(1);
+                sendBuffer();
+
+                packetInitWrite(PACKET_MOD_LIST_FILE, true, PLMT_NONE);
+                write<uint16_t>(i);
+                write<uint16_t>(0);
+                std::string relativeName = mod.name;
+                write<uint16_t>(relativeName.size());
+                write<std::string>(relativeName, relativeName.size());
+                write<uint64_t>(mod.size);
+                // hash
+                for (int h=0; h<16; h++) write<uint8_t>(0);
+                sendBuffer();
+            }
+
+            packetInitWrite(PACKET_MOD_LIST_DONE, true, PLMT_NONE);
             sendBuffer();
 
             packetOrderedEnd();
+            break;
+        }
+        case PACKET_DOWNLOAD_REQUEST: {
+            uint64_t requestOffset = read<uint64_t>();
+
+            uint64_t totalModsSize = 0;
+            for (auto &mod : gServerConfig.mods) {
+                totalModsSize += mod.size;
+            }
+
+            for (uint64_t i = 0; i < 50; i++) {
+                uint64_t sendOffset = requestOffset + (i * 800);
+                if (sendOffset >= totalModsSize) {
+                    break;
+                }
+
+                uint8_t chunk[800] = { 0 };
+                uint64_t chunkFill = 0;
+                uint64_t fileStartOffset = 0;
+
+                for (auto &mod : gServerConfig.mods) {
+                    if ((fileStartOffset + mod.size) < sendOffset) {
+                        fileStartOffset += mod.size;
+                        continue;
+                    }
+
+                    uint64_t fileReadOffset = (sendOffset > fileStartOffset) ? (sendOffset - fileStartOffset) : 0;
+                    uint64_t fileReadLength = std::min(mod.size - fileReadOffset, (uint64_t)(800 - chunkFill));
+
+                    std::ifstream file(mod.luaPath, std::ios::binary);
+                    if (file.is_open()) {
+                        file.seekg(fileReadOffset, std::ios::beg);
+                        file.read(reinterpret_cast<char*>(&chunk[chunkFill]), fileReadLength);
+                    } else {
+                        std::cout << "Failed to open mod file for download: " << mod.luaPath << std::endl;
+                    }
+
+                    chunkFill += fileReadLength;
+                    fileStartOffset += mod.size;
+
+                    if (chunkFill >= 800) {
+                        break;
+                    }
+                }
+
+                packetInitWrite(PACKET_DOWNLOAD, true, PLMT_NONE);
+                write<uint64_t>(sendOffset);
+                write<uint64_t>(chunkFill);
+                
+                for (uint64_t j = 0; j < chunkFill; j++) {
+                    write<uint8_t>(chunk[j]);
+                }
+
+                sendBuffer();
+            }
+
             break;
         }
         case PACKET_JOIN_REQUEST: {
@@ -436,7 +523,6 @@ void CoopPacket::handleInternal() {
         }
         case PACKET_PING: {
             uint8_t globalIndex = read<uint8_t>();
-            if (globalIndex == 0) break;
             double timestamp = read<double>();
 
             packetInitWrite(PACKET_PONG, false, PLMT_NONE);

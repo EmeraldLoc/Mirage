@@ -33,18 +33,7 @@ void ServerConfig::read(const std::string &filename) {
     if (data.contains("mods") && data["mods"].is_array()) {
         for (auto &modPathObj : data["mods"]) {
             std::string modPath = modPathObj.get<std::string>();
-            CoopMod newMod;
-            
-            size_t lastSlash = modPath.find_last_of("/\\");
-            newMod.name = (lastSlash != std::string::npos) ? modPath.substr(lastSlash + 1) : modPath;
-            newMod.luaPath = modPath;
-
-            std::ifstream modLuaFile(modPath, std::ios::binary);
-            if (modLuaFile.is_open()) {
-                modLuaFile.seekg(0, std::ios::end);
-                newMod.size = modLuaFile.tellg();
-                modLuaFile.close();
-                mods.push_back(newMod);
+            if (CoopMod::loadLua(modPath)) {
                 std::cout << "Loaded mod " << modPath << '\n';
             } else {
                 std::cout << "Failed to open mod file: " << modPath << '\n';

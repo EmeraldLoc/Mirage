@@ -88,16 +88,18 @@ private:
     std::vector<uint8_t> rawData;
     std::vector<uint8_t> outBuffer;
     size_t offset = 3;
+
+    CoopPacket(socket_t s, sockaddr_in a, uint8_t pType, bool reliable, uint8_t levelMatchType, int asGlobalIndex);
 public:
-    uint8_t pktType;
+    uint8_t pktType = 0;
     uint16_t seqId = 0;
     bool isReliable = false;
-    uint8_t flags;
-    bool levelAreaMustMatch;
-    bool requestBroadcast;
-    bool isOrdered;
-    bool levelMustMatch;
-    uint8_t destGlobalId;
+    uint8_t flags = 0;
+    bool levelAreaMustMatch = false;
+    bool requestBroadcast = false;
+    bool isOrdered = false;
+    bool levelMustMatch = false;
+    uint8_t destGlobalId = 0;
 
     uint8_t orderedFromGlobalId = 0;
     uint16_t orderedGroupId = 0;
@@ -108,7 +110,8 @@ public:
     int16_t levelNum = 0;
     uint8_t areaIndex = 0;
 
-    CoopPacket(socket_t s, sockaddr_in a, const uint8_t *compData = nullptr, size_t compLen = 0);
+    CoopPacket(socket_t s, sockaddr_in a, const uint8_t *compData, size_t compLen);
+    static CoopPacket createOutgoing(socket_t s, sockaddr_in a, uint8_t pType, bool reliable = false, uint8_t levelMatchType = PLMT_NONE, int asGlobalIndex = 0);
 
     template<typename T>
     T read(size_t length = 0) {
@@ -164,11 +167,9 @@ public:
 
     void sendBuffer();
     void sendBufferToAll();
-    void packetInitWrite(uint8_t pType, bool reliable = false, uint8_t levelMatchType = PLMT_NONE, int asGlobalIndex=0);
-    
     void setOrderedData();
     void handle();
-    void forwardPacket(uint8_t pType, bool reliable=true, uint8_t levelMatchType=PLMT_NONE, int asGlobalIndex=0);
+    void forwardPacket(uint8_t pType, bool reliable = true, uint8_t levelMatchType = PLMT_NONE, int asGlobalIndex = 0);
     void handleInternal();
     void processOrderedAndHandle();
 };

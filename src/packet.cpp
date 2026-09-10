@@ -33,6 +33,7 @@ void packetOrderedEnd() {
     sCurrentOrderedSeqId = 0;
 }
 
+// for reads
 CoopPacket::CoopPacket(socket_t s, sockaddr_in a, const uint8_t *compData, size_t compLen) : sock(s), addr(a) {
     std::vector<uint8_t> dest(65536);
     uLongf destLen = dest.size();
@@ -75,6 +76,51 @@ CoopPacket::CoopPacket(socket_t s, sockaddr_in a, const uint8_t *compData, size_
         actNum = read<uint8_t>();
         levelNum = read<int16_t>();
     }
+}
+
+// for writes
+CoopPacket::CoopPacket(socket_t s, sockaddr_in a, uint8_t pType, bool reliable, uint8_t levelMatchType, int asGlobalIndex) : sock(s), addr(a), pktType(pType), isReliable(reliable) {
+    uint8_t initFlags = 0;
+    if (levelMatchType == PLMT_AREA) initFlags |= (1 << 0);
+    if (levelMatchType == PLMT_LEVEL) initFlags |= (1 << 3);
+    if (sOrderedPackets) initFlags |= (1 << 2);
+
+    if (reliable) {
+        seqId = sNextSeqNum++;
+        if (sNextSeqNum == 0) sNextSeqNum = 1;
+    }
+
+    write<uint8_t>(pType);
+    write<uint16_t>(seqId);
+    write<uint8_t>(initFlags);
+    write<uint8_t>(PACKET_DESTINATION_BROADCAST);
+
+    NetworkPlayer *localNp = &gNetworkPlayers[asGlobalIndex];
+    if (sOrderedPackets) {
+        uint8_t localGlobalIndex = localNp->globalIndex; 
+        write<uint8_t>(localGlobalIndex); 
+        write<uint16_t>(sCurrentOrderedGroupId); 
+        write<uint16_t>(0);
+    }
+    
+    if (levelMatchType == PLMT_AREA) {
+        write<uint8_t>(localNp->currCourseNum);
+        write<uint8_t>(localNp->currActNum);
+        write<int16_t>(localNp->currLevelNum);
+        write<uint8_t>(localNp->currAreaIndex);
+    } else if (levelMatchType == PLMT_LEVEL) {
+        write<uint8_t>(localNp->currCourseNum);
+        write<uint8_t>(localNp->currActNum);
+        write<int16_t>(localNp->currLevelNum);
+    }
+
+    isOrdered = sOrderedPackets;
+    orderedGroupId = sOrderedPackets ? sCurrentOrderedGroupId : 0;
+    orderedSeqId = 0;
+}
+
+CoopPacket CoopPacket::createOutgoing(socket_t s, sockaddr_in a, uint8_t pType, bool reliable, uint8_t levelMatchType, int asGlobalIndex) {
+    return CoopPacket(s, a, pType, reliable, levelMatchType, asGlobalIndex);
 }
 
 void CoopPacket::setOrderedData() {
@@ -167,55 +213,9 @@ void CoopPacket::sendBufferToAll() {
     outBuffer.clear();
 }
 
-void CoopPacket::packetInitWrite(uint8_t pType, bool reliable, uint8_t levelMatchType, int asGlobalIndex) {
-    outBuffer.clear();
-    uint8_t initFlags = 0;
-    
-    if (levelMatchType == PLMT_AREA) initFlags |= (1 << 0);
-    if (levelMatchType == PLMT_LEVEL) initFlags |= (1 << 3);
-    if (sOrderedPackets) initFlags |= (1 << 2);
-
-    uint16_t currentSeq = 0;
-    if (reliable) {
-        currentSeq = sNextSeqNum++;
-        if (sNextSeqNum == 0) sNextSeqNum = 1;
-    }
-
-    write<uint8_t>(pType);
-    write<uint16_t>(currentSeq);
-    write<uint8_t>(initFlags);
-    write<uint8_t>(PACKET_DESTINATION_BROADCAST);
-
-    NetworkPlayer *localNp = &gNetworkPlayers[asGlobalIndex];
-    if (sOrderedPackets) {
-        uint8_t localGlobalIndex = localNp->globalIndex; 
-        write<uint8_t>(sOrderedPackets ? localGlobalIndex : 0); 
-        write<uint16_t>(sOrderedPackets ? sCurrentOrderedGroupId : 0); 
-        write<uint16_t>(0);
-    }
-    
-    if (levelMatchType == PLMT_AREA) {
-        write<uint8_t>(localNp->currCourseNum);
-        write<uint8_t>(localNp->currActNum);
-        write<int16_t>(localNp->currLevelNum);
-        write<uint8_t>(localNp->currAreaIndex);
-    } else if (levelMatchType == PLMT_LEVEL) {
-        write<uint8_t>(localNp->currCourseNum);
-        write<uint8_t>(localNp->currActNum);
-        write<int16_t>(localNp->currLevelNum);
-    }
-
-    this->isReliable = reliable;
-    this->seqId = currentSeq;
-    this->isOrdered = (sOrderedPackets);
-    this->orderedGroupId = sOrderedPackets ? sCurrentOrderedGroupId : 0;
-    this->orderedSeqId = 0;
-}
-
 void CoopPacket::handle() {
     if (seqId != 0 && pktType != PACKET_ACK) {
-        CoopPacket ackPkt(sock, addr);
-        ackPkt.packetInitWrite(PACKET_ACK, false, PLMT_NONE);
+        auto ackPkt = CoopPacket::createOutgoing(sock, addr, PACKET_ACK, false, PLMT_NONE);
         ackPkt.write<uint16_t>(seqId);
         ackPkt.sendBuffer();
     }
@@ -246,17 +246,13 @@ void CoopPacket::processOrderedAndHandle() {
 }
 
 void CoopPacket::forwardPacket(uint8_t pType, bool reliable, uint8_t levelMatchType, int asGlobalIndex) {
-    int32_t size = rawData.size();
-    std::vector<uint8_t> data(size);
-    for (int i = 0; i < size; i++) {
-        data[i] = read<uint8_t>();
-    }
+    std::vector<uint8_t> payload(rawData.begin() + offset, rawData.end());
 
-    packetInitWrite(pType, reliable, levelMatchType, asGlobalIndex);
-    for (int i = 0; i < size; i++) {
-        write<uint8_t>(data[i]);
+    auto outPkt = CoopPacket::createOutgoing(sock, addr, pType, reliable, levelMatchType, asGlobalIndex);
+    for (uint8_t b : payload) {
+        outPkt.write<uint8_t>(b);
     }
-    sendBufferToAll();
+    outPkt.sendBufferToAll();
 }
 
 void CoopPacket::handleInternal() {
@@ -297,45 +293,44 @@ void CoopPacket::handleInternal() {
 
             packetOrderedBegin();
 
-            packetInitWrite(PACKET_MOD_LIST, true, PLMT_NONE);
-            write<std::string>(gServerConfig.version, 128);
-            write<uint16_t>(gServerConfig.mods.size());
-            sendBuffer();
+            auto outPkt = CoopPacket::createOutgoing(sock, addr, PACKET_MOD_LIST, true, PLMT_NONE);
+            outPkt.write<std::string>(gServerConfig.version, 128);
+            outPkt.write<uint16_t>(gServerConfig.mods.size());
+            outPkt.sendBuffer();
 
-            for (uint16_t i = 0; i < gServerConfig.mods.size(); ++i) {
+            for (uint16_t i = 0; i < gServerConfig.mods.size(); i++) {
                 CoopMod &mod = gServerConfig.mods[i];
 
-                packetInitWrite(PACKET_MOD_LIST_ENTRY, true, PLMT_NONE);
-                write<uint16_t>(i);
+                auto entryPkt = CoopPacket::createOutgoing(sock, addr, PACKET_MOD_LIST_ENTRY, true, PLMT_NONE);
+                entryPkt.write<uint16_t>(i);
                 uint16_t nameLen = mod.name.size();
-                write<uint16_t>(nameLen);
-                write<std::string>(mod.name, nameLen);
-                write<uint16_t>(0);
-                write<std::string>("", 0);
+                entryPkt.write<uint16_t>(nameLen);
+                entryPkt.write<std::string>(mod.name, nameLen);
+                entryPkt.write<uint16_t>(0);
+                entryPkt.write<std::string>("", 0);
                 uint16_t pathLen = mod.luaPath.size();
-                write<uint16_t>(pathLen);
-                write<std::string>(mod.luaPath, pathLen);
-                write<uint64_t>(mod.size); 
-                write<uint8_t>(false);
-                write<uint8_t>(true);
-                write<uint8_t>(false);
-                write<uint16_t>(1);
-                sendBuffer();
+                entryPkt.write<uint16_t>(pathLen);
+                entryPkt.write<std::string>(mod.luaPath, pathLen);
+                entryPkt.write<uint64_t>(mod.size); 
+                entryPkt.write<uint8_t>(false);
+                entryPkt.write<uint8_t>(true);
+                entryPkt.write<uint8_t>(false);
+                entryPkt.write<uint16_t>(1);
+                entryPkt.sendBuffer();
 
-                packetInitWrite(PACKET_MOD_LIST_FILE, true, PLMT_NONE);
-                write<uint16_t>(i);
-                write<uint16_t>(0);
+                auto filePkt = CoopPacket::createOutgoing(sock, addr, PACKET_MOD_LIST_FILE, true, PLMT_NONE);
+                filePkt.write<uint16_t>(i);
+                filePkt.write<uint16_t>(0);
                 std::string relativeName = mod.name;
-                write<uint16_t>(relativeName.size());
-                write<std::string>(relativeName, relativeName.size());
-                write<uint64_t>(mod.size);
-                // hash
-                for (int h=0; h<16; h++) write<uint8_t>(0);
-                sendBuffer();
+                filePkt.write<uint16_t>(relativeName.size());
+                filePkt.write<std::string>(relativeName, relativeName.size());
+                filePkt.write<uint64_t>(mod.size);
+                for (int h = 0; h < 16; h++) filePkt.write<uint8_t>(0);
+                filePkt.sendBuffer();
             }
 
-            packetInitWrite(PACKET_MOD_LIST_DONE, true, PLMT_NONE);
-            sendBuffer();
+            auto donePkt = CoopPacket::createOutgoing(sock, addr, PACKET_MOD_LIST_DONE, true, PLMT_NONE);
+            donePkt.sendBuffer();
 
             packetOrderedEnd();
             break;
@@ -383,15 +378,15 @@ void CoopPacket::handleInternal() {
                     }
                 }
 
-                packetInitWrite(PACKET_DOWNLOAD, true, PLMT_NONE);
-                write<uint64_t>(sendOffset);
-                write<uint64_t>(chunkFill);
+                auto outPkt = CoopPacket::createOutgoing(sock, addr, PACKET_DOWNLOAD, true, PLMT_NONE);
+                outPkt.write<uint64_t>(sendOffset);
+                outPkt.write<uint64_t>(chunkFill);
                 
                 for (uint64_t j = 0; j < chunkFill; j++) {
-                    write<uint8_t>(chunk[j]);
+                    outPkt.write<uint8_t>(chunk[j]);
                 }
 
-                sendBuffer();
+                outPkt.sendBuffer();
             }
 
             break;
@@ -435,28 +430,25 @@ void CoopPacket::handleInternal() {
             NetworkPlayer *np = &gNetworkPlayers[globalIndex];
             gNetworkPlayerSockets[globalIndex] = addr;
 
-            packetInitWrite(PACKET_JOIN, true, PLMT_NONE);
+            auto outPkt = CoopPacket::createOutgoing(sock, addr, PACKET_JOIN, true, PLMT_NONE);
+            outPkt.write<std::string>(gServerConfig.version, 128);
+            outPkt.write<uint8_t>(globalIndex);
 
-            write<std::string>(gServerConfig.version, 128);
-            write<uint8_t>(globalIndex);
-
-            write<int16_t>(gServerConfig.savefileIndex);
-            write<uint8_t>(gServerConfig.playerInteractions);
-            write<uint8_t>(gServerConfig.bouncyBounds);
-            write<uint8_t>(gServerConfig.knockStrength);
-            write<uint8_t>(gServerConfig.starStaying);
-            write<uint8_t>(gServerConfig.skipIntro);
-            write<uint8_t>(gServerConfig.bubbleDeath);
-            write<uint8_t>(gServerConfig.headless);
-            write<uint8_t>(gServerConfig.nametags);
-            write<uint8_t>(gServerConfig.maxPlayers);
-            write<uint8_t>(gServerConfig.pauseAnywhere);
-            write<uint8_t>(0);
-            
-            // eeprom
-            for (int i = 0; i < 512; i++) write<uint8_t>(255);
-            
-            sendBuffer();
+            outPkt.write<int16_t>(gServerConfig.savefileIndex);
+            outPkt.write<uint8_t>(gServerConfig.playerInteractions);
+            outPkt.write<uint8_t>(gServerConfig.bouncyBounds);
+            outPkt.write<uint8_t>(gServerConfig.knockStrength);
+            outPkt.write<uint8_t>(gServerConfig.starStaying);
+            outPkt.write<uint8_t>(gServerConfig.skipIntro);
+            outPkt.write<uint8_t>(gServerConfig.bubbleDeath);
+            outPkt.write<uint8_t>(gServerConfig.headless);
+            outPkt.write<uint8_t>(gServerConfig.nametags);
+            outPkt.write<uint8_t>(gServerConfig.maxPlayers);
+            outPkt.write<uint8_t>(gServerConfig.pauseAnywhere);
+            outPkt.write<uint8_t>(0);
+                
+            for (int i = 0; i < 512; i++) outPkt.write<uint8_t>(255);
+            outPkt.sendBuffer();
 
             np->connected = true;
             np->globalIndex = globalIndex;
@@ -464,26 +456,25 @@ void CoopPacket::handleInternal() {
             np->modelIndex = model;
             memcpy(np->palette.colors, palette.colors, 24);
 
-            packetInitWrite(PACKET_NETWORK_PLAYERS, true, PLMT_NONE);
-            write<uint8_t>(1);
-            write<uint8_t>(np->type);
-            write<uint8_t>(np->globalIndex);
-            write<uint16_t>(np->currLevelAreaSeqId);
-            write<int16_t>(np->currCourseNum);
-            write<int16_t>(np->currActNum);
-            write<int16_t>(np->currLevelNum);
-            write<int16_t>(np->currAreaIndex);
-            write<uint8_t>(np->currLevelSyncValid);
-            write<uint8_t>(np->currAreaSyncValid);
-            write<int64_t>(np->networkId);
-            write<uint8_t>(np->modelIndex);
+            auto broadcastPkt = CoopPacket::createOutgoing(sock, addr, PACKET_NETWORK_PLAYERS, true, PLMT_NONE);
+            broadcastPkt.write<uint8_t>(1);
+            broadcastPkt.write<uint8_t>(np->type);
+            broadcastPkt.write<uint8_t>(np->globalIndex);
+            broadcastPkt.write<uint16_t>(np->currLevelAreaSeqId);
+            broadcastPkt.write<int16_t>(np->currCourseNum);
+            broadcastPkt.write<int16_t>(np->currActNum);
+            broadcastPkt.write<int16_t>(np->currLevelNum);
+            broadcastPkt.write<int16_t>(np->currAreaIndex);
+            broadcastPkt.write<uint8_t>(np->currLevelSyncValid);
+            broadcastPkt.write<uint8_t>(np->currAreaSyncValid);
+            broadcastPkt.write<int64_t>(np->networkId);
+            broadcastPkt.write<uint8_t>(np->modelIndex);
             for (int i = 0; i < 24; i++) {
-                write<uint8_t>(np->palette.colors[i]);
+                broadcastPkt.write<uint8_t>(np->palette.colors[i]);
             }
-            write<std::string>(np->name, 64);
-            write<std::string>(np->discordId, 64);
-
-            sendBufferToAll();
+            broadcastPkt.write<std::string>(np->name, 64);
+            broadcastPkt.write<std::string>(np->discordId, 64);
+            broadcastPkt.sendBufferToAll();
             break;
         }
         case PACKET_NETWORK_PLAYERS_REQUEST: {
@@ -496,42 +487,42 @@ void CoopPacket::handleInternal() {
                 }
             }
 
-            packetInitWrite(PACKET_NETWORK_PLAYERS, true, PLMT_NONE);
-            write<uint8_t>(connectedCount);
+            auto outPkt = CoopPacket::createOutgoing(sock, addr, PACKET_NETWORK_PLAYERS, true, PLMT_NONE);
+            outPkt.write<uint8_t>(connectedCount);
             for (const auto &player : gNetworkPlayers) {
                 if (!player.connected || sockaddrInEqual(addr, gNetworkPlayerSockets[player.globalIndex])) continue;
                 std::cout << "Sent player '" << player.name << "'  " << (int)player.globalIndex << std::endl;
-                write<uint8_t>(player.type);
-                write<uint8_t>(player.globalIndex);
-                write<uint16_t>(player.currLevelAreaSeqId);
-                write<int16_t>(player.currCourseNum);
-                write<int16_t>(player.currActNum);
-                write<int16_t>(player.currLevelNum);
-                write<int16_t>(player.currAreaIndex);
-                write<uint8_t>(player.currLevelSyncValid);
-                write<uint8_t>(player.currAreaSyncValid);
-                write<int64_t>(player.networkId);
-                write<uint8_t>(player.modelIndex);
+                outPkt.write<uint8_t>(player.type);
+                outPkt.write<uint8_t>(player.globalIndex);
+                outPkt.write<uint16_t>(player.currLevelAreaSeqId);
+                outPkt.write<int16_t>(player.currCourseNum);
+                outPkt.write<int16_t>(player.currActNum);
+                outPkt.write<int16_t>(player.currLevelNum);
+                outPkt.write<int16_t>(player.currAreaIndex);
+                outPkt.write<uint8_t>(player.currLevelSyncValid);
+                outPkt.write<uint8_t>(player.currAreaSyncValid);
+                outPkt.write<int64_t>(player.networkId);
+                outPkt.write<uint8_t>(player.modelIndex);
                 for (int i = 0; i < 24; i++) {
-                    write<uint8_t>(player.palette.colors[i]);
+                    outPkt.write<uint8_t>(player.palette.colors[i]);
                 }
-                write<std::string>(player.name, MAX_CONFIG_STRING);
-                write<std::string>(player.discordId, 64);
+                outPkt.write<std::string>(player.name, MAX_CONFIG_STRING);
+                outPkt.write<std::string>(player.discordId, 64);
             }
-            sendBuffer();
+            outPkt.sendBuffer();
             break;
         }
         case PACKET_PING: {
             uint8_t globalIndex = read<uint8_t>();
             double timestamp = read<double>();
 
-            packetInitWrite(PACKET_PONG, false, PLMT_NONE);
-            write<uint8_t>(globalIndex);
-            write<double>(timestamp);
+            auto outPkt = CoopPacket::createOutgoing(sock, addr, PACKET_PONG, false, PLMT_NONE);
+            outPkt.write<uint8_t>(globalIndex);
+            outPkt.write<double>(timestamp);
 
             std::cout << "Ping from id " << (int)globalIndex << std::endl;
 
-            sendBuffer();
+            outPkt.sendBuffer();
             break;
         }
         case PACKET_CHANGE_LEVEL: {
@@ -550,14 +541,14 @@ void CoopPacket::handleInternal() {
                 np->currLevelSyncValid = true;
                 np->currAreaSyncValid = true;
 
-                packetInitWrite(PACKET_SYNC_VALID, true, PLMT_NONE);
-                write<int16_t>(courseNum);
-                write<int16_t>(actNum);
-                write<int16_t>(levelNum);
-                write<int16_t>(areaIndex);
-                write<uint8_t>(0);
-                write<uint8_t>(np->globalIndex);
-                sendBuffer();
+                auto outPkt = CoopPacket::createOutgoing(sock, addr, PACKET_SYNC_VALID, true, PLMT_NONE);
+                outPkt.write<int16_t>(courseNum);
+                outPkt.write<int16_t>(actNum);
+                outPkt.write<int16_t>(levelNum);
+                outPkt.write<int16_t>(areaIndex);
+                outPkt.write<uint8_t>(0);
+                outPkt.write<uint8_t>(np->globalIndex);
+                outPkt.sendBuffer();
             }
             break;
         }
@@ -584,16 +575,16 @@ void CoopPacket::handleInternal() {
             np->currLevelNum = levelNum;
             np->currAreaIndex = areaIndex;
 
-            packetInitWrite(PACKET_LEVEL_AREA_INFORM, true, PLMT_NONE);
-            write<uint16_t>(seq);
-            write<uint8_t>(globalIndex);
-            write<int16_t>(courseNum);
-            write<int16_t>(actNum);
-            write<int16_t>(levelNum);
-            write<int16_t>(areaIndex);
-            write<uint8_t>(levelSyncValid);
-            write<uint8_t>(areaSyncValid);
-            sendBufferToAll();
+            auto outPkt = CoopPacket::createOutgoing(sock, addr, PACKET_LEVEL_AREA_INFORM, true, PLMT_NONE);
+            outPkt.write<uint16_t>(seq);
+            outPkt.write<uint8_t>(globalIndex);
+            outPkt.write<int16_t>(courseNum);
+            outPkt.write<int16_t>(actNum);
+            outPkt.write<int16_t>(levelNum);
+            outPkt.write<int16_t>(areaIndex);
+            outPkt.write<uint8_t>(levelSyncValid);
+            outPkt.write<uint8_t>(areaSyncValid);
+            outPkt.sendBufferToAll();
             break;
         }
         case PACKET_CHAT: {
@@ -603,18 +594,18 @@ void CoopPacket::handleInternal() {
             std::string msg = read<std::string>(msgLen);
             std::cout << "Message from " << gNetworkPlayers[globalIndex].name << ": " << msg << std::endl;
 
-            packetInitWrite(PACKET_CHAT, true, PLMT_NONE);
-            write<uint8_t>(globalIndex);
-            write<uint16_t>(msgLen);
-            write<std::string>(msg, msgLen);
-            sendBufferToAll();
+            auto outPkt = CoopPacket::createOutgoing(sock, addr, PACKET_CHAT, true, PLMT_NONE);
+            outPkt.write<uint8_t>(globalIndex);
+            outPkt.write<uint16_t>(msgLen);
+            outPkt.write<std::string>(msg, msgLen);
+            outPkt.sendBufferToAll();
             break;
         }
         case PACKET_LEAVING: {
             uint8_t globalIndex = read<uint8_t>();
-            packetInitWrite(PACKET_LEAVING, true, PLMT_NONE);
-            write<uint8_t>(globalIndex);
-            sendBufferToAll();
+            auto outPkt = CoopPacket::createOutgoing(sock, addr, PACKET_LEAVING, true, PLMT_NONE);
+            outPkt.write<uint8_t>(globalIndex);
+            outPkt.sendBufferToAll();
             if (globalIndex < MAX_PLAYERS) {
                 std::cout << "Player '" << gNetworkPlayers[globalIndex].name << "' " << "disconnected" << std::endl;
                 gNetworkPlayers[globalIndex].connected = false;

@@ -108,7 +108,7 @@ public:
     int16_t levelNum = 0;
     uint8_t areaIndex = 0;
 
-    CoopPacket(socket_t s, sockaddr_in a, const std::vector<uint8_t> &data);
+    CoopPacket(socket_t s, sockaddr_in a, const uint8_t *compData = nullptr, size_t compLen = 0);
 
     template<typename T>
     T read(size_t length = 0) {
@@ -164,11 +164,11 @@ public:
 
     void sendBuffer();
     void sendBufferToAll();
-    void packetInit(uint8_t pType, bool reliable = false, uint8_t levelMatchType = PLMT_NONE);
+    void packetInitWrite(uint8_t pType, bool reliable = false, uint8_t levelMatchType = PLMT_NONE, int asGlobalIndex=0);
     
     void setOrderedData();
     void handle();
-    void forwardAndIgnore(uint8_t pType, bool reliable=true, uint8_t levelMatchType=PLMT_NONE);
+    void forwardPacket(uint8_t pType, bool reliable=true, uint8_t levelMatchType=PLMT_NONE, int asGlobalIndex=0);
     void handleInternal();
     void processOrderedAndHandle();
 };

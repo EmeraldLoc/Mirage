@@ -1,18 +1,10 @@
 #pragma once
-
-#include <vector>
-#include <cstdint>
-#include "socket.hpp"
+#include "server.hpp"
 
 class CoopLobby {
 private:
-    int port;
-    UDPSocket udpSocket;
-
-    std::vector<uint8_t> decompressData(const uint8_t *data, size_t len);
+    CoopServer server;
 public:
     CoopLobby(int p);
-
     void start();
-    void runLoop();
 };

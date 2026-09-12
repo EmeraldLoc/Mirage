@@ -33,10 +33,13 @@ void ServerConfig::read(const std::string &filename) {
     if (data.contains("mods") && data["mods"].is_array()) {
         for (auto &modPathObj : data["mods"]) {
             std::string modPath = modPathObj.get<std::string>();
-            if (CoopMod::loadLua(modPath)) {
-                std::cout << "Loaded mod " << modPath << '\n';
+            CoopMod mod;
+
+            if (CoopMod::extractFields(mod, modPath)) {
+                CoopMod::load(mod);
+                std::cout << "Loaded mod " << mod.name << '\n';
             } else {
-                std::cout << "Failed to open mod file: " << modPath << '\n';
+                std::cout << "Failed to open mod from file/path: " << modPath << '\n';
             }
         }
     }

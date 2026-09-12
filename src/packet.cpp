@@ -336,9 +336,8 @@ void CoopPacket::handleInternal() {
                 entryPkt.write<std::string>(mod.name, nameLen);
                 entryPkt.write<uint16_t>(0);
                 entryPkt.write<std::string>("", 0);
-                uint16_t pathLen = mod.luaPath.size();
-                entryPkt.write<uint16_t>(pathLen);
-                entryPkt.write<std::string>(mod.luaPath, pathLen);
+                entryPkt.write<uint16_t>(0); // pathlen
+                entryPkt.write<std::string>("", 0); // path
                 entryPkt.write<uint64_t>(mod.size); 
                 entryPkt.write<uint8_t>(false);
                 entryPkt.write<uint8_t>(true);
@@ -390,12 +389,12 @@ void CoopPacket::handleInternal() {
                     uint64_t fileReadOffset = (sendOffset > fileStartOffset) ? (sendOffset - fileStartOffset) : 0;
                     uint64_t fileReadLength = std::min(mod.size - fileReadOffset, (uint64_t)(800 - chunkFill));
 
-                    std::ifstream file(mod.luaPath, std::ios::binary);
+                    std::ifstream file("", std::ios::binary);
                     if (file.is_open()) {
                         file.seekg(fileReadOffset, std::ios::beg);
                         file.read(reinterpret_cast<char*>(&chunk[chunkFill]), fileReadLength);
                     } else {
-                        std::cout << "Failed to open mod file for download: " << mod.luaPath << std::endl;
+                        std::cout << "Failed to open mod file for download: " << "" << std::endl;
                     }
 
                     chunkFill += fileReadLength;

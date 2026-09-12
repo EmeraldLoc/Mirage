@@ -1,5 +1,8 @@
 #include "config.hpp"
+#include "json.hpp"
 #include <iostream>
+
+using json = nlohmann::json;
 
 ServerConfig gServerConfig{};
 

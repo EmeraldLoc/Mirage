@@ -285,6 +285,15 @@ void CoopPacket::handleInternal() {
         case PACKET_SPAWN_OBJECTS:
             forwardPacket(PACKET_SPAWN_OBJECTS, true, PLMT_AREA, senderGlobalIndex);
             break;
+        case PACKET_SPAWN_STAR:
+            forwardPacket(PACKET_SPAWN_STAR, true, PLMT_AREA, senderGlobalIndex);
+            break;
+        case PACKET_SPAWN_STAR_NLE:
+            forwardPacket(PACKET_SPAWN_STAR_NLE, true, PLMT_AREA, senderGlobalIndex);
+            break;
+        /*case PACKET_AREA:
+            forwardPacket(PACKET_AREA, true, PLMT_NONE, senderGlobalIndex);
+            break;*/
         case PACKET_LEVEL_RESPAWN_INFO:
             forwardPacket(PACKET_LEVEL_RESPAWN_INFO, true, PLMT_NONE);
             break;

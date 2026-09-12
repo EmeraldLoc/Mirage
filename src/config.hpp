@@ -2,15 +2,12 @@
 
 #include "network.hpp"
 #include "mod.hpp"
-#include "json.hpp"
 
 #include <fstream>
 #include <string>
 #include <vector>
 
 const std::string SERVER_CONFIGFILE = "config.json";
-
-using json = nlohmann::json;
 
 class ServerConfig {
 public:

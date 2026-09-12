@@ -1,6 +1,7 @@
 #include "packet.hpp"
 #include "network.hpp"
 #include "config.hpp"
+#include "savefile.hpp"
 #include <algorithm>
 #include <iostream>
 #include <ostream>
@@ -287,6 +288,33 @@ void CoopPacket::handleInternal() {
         case PACKET_LEVEL_RESPAWN_INFO:
             forwardPacket(PACKET_LEVEL_RESPAWN_INFO, true, PLMT_NONE);
             break;
+        case PACKET_SAVE_FILE: {
+            int32_t fileIndex = read<int32_t>();
+            uint8_t backupSlot = read<uint8_t>();
+
+            gSaveFile.save();
+            break;
+        }
+        case PACKET_SAVE_SET_FLAG: {
+            int32_t fileIndex = read<int32_t>();
+            int32_t courseIndex = read<int32_t>();
+            uint8_t courseData = read<uint8_t>();
+            uint32_t flags = read<uint32_t>();
+            uint8_t backupSlot = read<uint8_t>();
+
+            gSaveFile.setFlags(flags, courseIndex, courseData);
+            break;
+        }
+        case PACKET_SAVE_REMOVE_FLAG: {
+            int32_t fileIndex = read<int32_t>();
+            int32_t courseIndex = read<int32_t>();
+            uint8_t courseData = read<uint8_t>();
+            uint32_t flags = read<uint32_t>();
+            uint8_t backupSlot = read<uint8_t>();
+
+            gSaveFile.removeFlags(flags, courseIndex, courseData);
+            break;
+        }
         case PACKET_MOD_LIST_REQUEST: {
             std::string version = read<std::string>(128);
             std::cout << "Received mod list request:\n  Version: " << version.c_str() << std::endl;
@@ -434,7 +462,7 @@ void CoopPacket::handleInternal() {
             outPkt.write<std::string>(gServerConfig.version, 128);
             outPkt.write<uint8_t>(globalIndex);
 
-            outPkt.write<int16_t>(gServerConfig.savefileIndex);
+            outPkt.write<int16_t>(gServerConfig.savefileIndex+1);
             outPkt.write<uint8_t>(gServerConfig.playerInteractions);
             outPkt.write<uint8_t>(gServerConfig.bouncyBounds);
             outPkt.write<uint8_t>(gServerConfig.knockStrength);
@@ -446,8 +474,9 @@ void CoopPacket::handleInternal() {
             outPkt.write<uint8_t>(gServerConfig.maxPlayers);
             outPkt.write<uint8_t>(gServerConfig.pauseAnywhere);
             outPkt.write<uint8_t>(0);
-                
-            for (int i = 0; i < 512; i++) outPkt.write<uint8_t>(255);
+
+            std::vector<uint8_t> eeprom = gSaveFile.getBuffer();
+            for (int i = 0; i < 512; i++) outPkt.write<uint8_t>(eeprom[i]);
             outPkt.sendBuffer();
 
             np->connected = true;

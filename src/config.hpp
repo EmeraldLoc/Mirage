@@ -8,7 +8,7 @@
 #include <string>
 #include <vector>
 
-#define SERVER_CONFIGFILE "config.json"
+const std::string SERVER_CONFIGFILE = "config.json";
 
 using json = nlohmann::json;
 
@@ -16,7 +16,7 @@ class ServerConfig {
 public:
     int port = 7777;
     std::string version = "v1.5.1";
-    std::string name = "PeakServer";
+    std::string name = "Server";
     int savefileIndex = 1;
     int playerInteractions = 1;
     int bouncyBounds = 0;

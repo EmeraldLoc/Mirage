@@ -11,11 +11,11 @@
 #include <list>
 #include "socket.hpp"
 
-#define PACKET_LENGTH 3000
-#define PACKET_DESTINATION_BROADCAST ((uint8_t)-1)
-#define PACKET_DESTINATION_SERVER ((uint8_t)-2)
-#define MAX_CONFIG_STRING 64
-#define MAX_CHAT_MSG_LENGTH 500
+constexpr size_t PACKET_LENGTH = 3000;
+constexpr uint8_t PACKET_DESTINATION_BROADCAST = ((uint8_t)-1);
+constexpr uint8_t PACKET_DESTINATION_SERVER = ((uint8_t)-2);
+constexpr uint8_t MAX_CONFIG_STRING = 64;
+constexpr size_t MAX_CHAT_MSG_LENGTH = 500;
 
 enum PacketType {
     PACKET_ACK,

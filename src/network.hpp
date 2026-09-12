@@ -6,7 +6,7 @@
 
 #include "socket.hpp"
 
-#define MAX_PLAYERS 16
+constexpr int MAX_PLAYERS = 16;
 
 struct PlayerPalette {
     uint8_t colors[24];

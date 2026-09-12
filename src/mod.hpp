@@ -6,12 +6,8 @@
 
 struct CoopModFile {
     std::string relativePath = "";
+    std::string realPath = "";
     size_t size = 0;
-    bool isLoadedLuaModule = false;
-
-    FILE* fp;
-    uint8_t dataHash[16];
-    std::string cachedPath = "";
 };
 
 class CoopMod {
@@ -19,10 +15,12 @@ public:
     std::string name = "";
     std::vector<CoopModFile> files;
     std::string relativePath = "";
+    std::string basePath = "";
     bool isDirectory = false;
     bool pausable = true;
     bool ignoreScriptWarnings = false;
     size_t size = 0;
-    static bool extractFields(CoopMod &mod, const std::string &modPath);
-    static bool load(CoopMod &mod);
+    
+    bool load(const std::string &modPath);
+    void extractFields(const std::string &mainFilePath);
 };

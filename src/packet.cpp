@@ -336,24 +336,26 @@ void CoopPacket::handleInternal() {
                 entryPkt.write<std::string>(mod.name, nameLen);
                 entryPkt.write<uint16_t>(0);
                 entryPkt.write<std::string>("", 0);
-                entryPkt.write<uint16_t>(0); // pathlen
-                entryPkt.write<std::string>("", 0); // path
+                entryPkt.write<uint16_t>(0); 
+                entryPkt.write<std::string>("", 0); 
                 entryPkt.write<uint64_t>(mod.size); 
                 entryPkt.write<uint8_t>(false);
                 entryPkt.write<uint8_t>(true);
                 entryPkt.write<uint8_t>(false);
-                entryPkt.write<uint16_t>(1);
+                entryPkt.write<uint16_t>(mod.files.size());
                 entryPkt.sendBuffer();
 
-                auto filePkt = CoopPacket::createOutgoing(sock, addr, PACKET_MOD_LIST_FILE, true, PLMT_NONE);
-                filePkt.write<uint16_t>(i);
-                filePkt.write<uint16_t>(0);
-                std::string relativeName = mod.name;
-                filePkt.write<uint16_t>(relativeName.size());
-                filePkt.write<std::string>(relativeName, relativeName.size());
-                filePkt.write<uint64_t>(mod.size);
-                for (int h = 0; h < 16; h++) filePkt.write<uint8_t>(0);
-                filePkt.sendBuffer();
+                for (uint16_t j = 0; j < mod.files.size(); j++) {
+                    CoopModFile &modFile = mod.files[j];
+                    auto filePkt = CoopPacket::createOutgoing(sock, addr, PACKET_MOD_LIST_FILE, true, PLMT_NONE);
+                    filePkt.write<uint16_t>(i);
+                    filePkt.write<uint16_t>(j);
+                    filePkt.write<uint16_t>(modFile.relativePath.size());
+                    filePkt.write<std::string>(modFile.relativePath, modFile.relativePath.size());
+                    filePkt.write<uint64_t>(modFile.size);
+                    for (int h = 0; h < 16; h++) filePkt.write<uint8_t>(0); // hash
+                    filePkt.sendBuffer();
+                }
             }
 
             auto donePkt = CoopPacket::createOutgoing(sock, addr, PACKET_MOD_LIST_DONE, true, PLMT_NONE);
@@ -372,9 +374,7 @@ void CoopPacket::handleInternal() {
 
             for (uint64_t i = 0; i < 50; i++) {
                 uint64_t sendOffset = requestOffset + (i * 800);
-                if (sendOffset >= totalModsSize) {
-                    break;
-                }
+                if (sendOffset >= totalModsSize) break;
 
                 uint8_t chunk[800] = { 0 };
                 uint64_t chunkFill = 0;
@@ -386,25 +386,32 @@ void CoopPacket::handleInternal() {
                         continue;
                     }
 
-                    uint64_t fileReadOffset = (sendOffset > fileStartOffset) ? (sendOffset - fileStartOffset) : 0;
-                    uint64_t fileReadLength = std::min(mod.size - fileReadOffset, (uint64_t)(800 - chunkFill));
+                    for (auto &modFile : mod.files) {
+                        if ((fileStartOffset + modFile.size) < sendOffset) {
+                            fileStartOffset += modFile.size;
+                            continue;
+                        }
 
-                    std::ifstream file("", std::ios::binary);
-                    if (file.is_open()) {
-                        file.seekg(fileReadOffset, std::ios::beg);
-                        file.read(reinterpret_cast<char*>(&chunk[chunkFill]), fileReadLength);
-                    } else {
-                        std::cout << "Failed to open mod file for download: " << "" << std::endl;
-                    }
+                        uint64_t fileReadOffset = (sendOffset > fileStartOffset) ? (sendOffset - fileStartOffset) : 0;
+                        uint64_t fileReadLength = std::min((uint64_t)(modFile.size - fileReadOffset), (uint64_t)(800 - chunkFill));
 
-                    chunkFill += fileReadLength;
-                    fileStartOffset += mod.size;
+                        std::ifstream file(modFile.realPath, std::ios::binary);
+                        if (file.is_open()) {
+                            file.seekg(fileReadOffset, std::ios::beg);
+                            file.read(reinterpret_cast<char*>(&chunk[chunkFill]), fileReadLength);
+                        } else {
+                            std::cout << "Failed to open mod file for download: " << modFile.realPath << std::endl;
+                        }
 
-                    if (chunkFill >= 800) {
-                        break;
+                        chunkFill += fileReadLength;
+                        fileStartOffset += modFile.size;
+
+                        if (chunkFill >= 800) {
+                            goto after_filled;
+                        }
                     }
                 }
-
+            after_filled:
                 auto outPkt = CoopPacket::createOutgoing(sock, addr, PACKET_DOWNLOAD, true, PLMT_NONE);
                 outPkt.write<uint64_t>(sendOffset);
                 outPkt.write<uint64_t>(chunkFill);

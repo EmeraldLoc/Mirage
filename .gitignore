@@ -4,3 +4,4 @@ compile_commands.json
 config.json
 *.lua
 sm64_save.bin
+mods/*

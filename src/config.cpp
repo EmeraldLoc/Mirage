@@ -35,8 +35,8 @@ void ServerConfig::read(const std::string &filename) {
             std::string modPath = modPathObj.get<std::string>();
             CoopMod mod;
 
-            if (CoopMod::extractFields(mod, modPath)) {
-                CoopMod::load(mod);
+            if (mod.load(modPath)) {
+                mods.push_back(mod);
                 std::cout << "Loaded mod " << mod.name << '\n';
             } else {
                 std::cout << "Failed to open mod from file/path: " << modPath << '\n';

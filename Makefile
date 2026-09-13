@@ -1,7 +1,7 @@
 DIRECTORIES := src
 TARGET := CoopFakeLobby
 BUILD_DIR := build
-CXX := g++
+CXX := clang++
 ASAN := 0
 CXXFLAGS := -O3 -Iinclude -g
 LDFLAGS := -lz

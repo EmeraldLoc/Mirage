@@ -35,10 +35,10 @@ void CoopSaveFile::load() {
     file.read(reinterpret_cast<char*>(buffer.data()), EEPROM_SIZE);
     file.close();
 
-    size_t fileOffset = this->index * 2 * SAVE_FILE_SIZE;
+    size_t fileOffset = index * 2 * SAVE_FILE_SIZE;
 
-    std::memcpy(&this->saveFlags, &buffer[fileOffset + 8], sizeof(uint32_t));
-    std::memcpy(this->courseStars, &buffer[fileOffset + 12], 25);
+    std::memcpy(&saveFlags, &buffer[fileOffset + 8], sizeof(uint32_t));
+    std::memcpy(courseStars, &buffer[fileOffset + 12], 25);
 }
 
 void CoopSaveFile::save() {
@@ -51,14 +51,14 @@ void CoopSaveFile::save() {
     }
 
     size_t fileOffsets[2] = {
-        this->index * 2 * SAVE_FILE_SIZE,
-        (this->index * 2 + 1) * SAVE_FILE_SIZE
+        index * 2 * SAVE_FILE_SIZE,
+        (index * 2 + 1) * SAVE_FILE_SIZE
     };
 
     uint16_t magic = 0x4441;
     for (size_t offset : fileOffsets) {
-        std::memcpy(&buffer[offset + 8], &this->saveFlags, sizeof(uint32_t));
-        std::memcpy(&buffer[offset + 12], this->courseStars, 25);
+        std::memcpy(&buffer[offset + 8], &saveFlags, sizeof(uint32_t));
+        std::memcpy(&buffer[offset + 12], courseStars, 25);
 
         std::memcpy(&buffer[offset + 52], &magic, sizeof(uint16_t));
 

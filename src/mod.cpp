@@ -68,6 +68,7 @@ bool CoopMod::load(const std::string &modPath) {
 
     std::string mainPath = modPath;
     basePath = modPath;
+    relativePath = fs::path(modPath).filename().string();
     size = 0;
     files.clear();
 

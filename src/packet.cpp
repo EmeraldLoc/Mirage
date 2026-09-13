@@ -125,14 +125,14 @@ CoopPacket CoopPacket::createOutgoing(socket_t s, sockaddr_in a, uint8_t pType, 
 }
 
 void CoopPacket::setOrderedData() {
-    if (this->orderedGroupId == 0) return;
-    if (this->orderedSeqId != 0) return;
+    if (orderedGroupId == 0) return;
+    if (orderedSeqId != 0) return;
     
-    this->orderedSeqId = sCurrentOrderedSeqId++;
+    orderedSeqId = sCurrentOrderedSeqId++;
     
     if (outBuffer.size() >= 10) {
-        outBuffer[8] = this->orderedSeqId & 0xFF;
-        outBuffer[9] = (this->orderedSeqId >> 8) & 0xFF;
+        outBuffer[8] = orderedSeqId & 0xFF;
+        outBuffer[9] = (orderedSeqId >> 8) & 0xFF;
     }
 }
 
@@ -270,6 +270,9 @@ void CoopPacket::handleInternal() {
         case PACKET_PLAYER:
             forwardPacket(PACKET_PLAYER, true, PLMT_AREA, senderGlobalIndex);
             break;
+        case PACKET_PLAYER_SETTINGS:
+            forwardPacket(PACKET_PLAYER_SETTINGS, true, PLMT_NONE, senderGlobalIndex);
+            break;
         case PACKET_OBJECT:
             forwardPacket(PACKET_OBJECT, true, PLMT_AREA, senderGlobalIndex);
             break;
@@ -294,6 +297,9 @@ void CoopPacket::handleInternal() {
         /*case PACKET_AREA:
             forwardPacket(PACKET_AREA, true, PLMT_NONE, senderGlobalIndex);
             break;*/
+        case PACKET_LUA_SYNC_TABLE:
+            forwardPacket(PACKET_LUA_SYNC_TABLE, true, PLMT_NONE, senderGlobalIndex);
+            break;
         case PACKET_LEVEL_RESPAWN_INFO:
             forwardPacket(PACKET_LEVEL_RESPAWN_INFO, true, PLMT_NONE);
             break;
@@ -345,12 +351,13 @@ void CoopPacket::handleInternal() {
                 entryPkt.write<std::string>(mod.name, nameLen);
                 entryPkt.write<uint16_t>(0);
                 entryPkt.write<std::string>("", 0);
-                entryPkt.write<uint16_t>(0); 
-                entryPkt.write<std::string>("", 0); 
+                uint16_t relLen = mod.relativePath.size();
+                entryPkt.write<uint16_t>(relLen); 
+                entryPkt.write<std::string>(mod.relativePath, relLen); 
                 entryPkt.write<uint64_t>(mod.size); 
-                entryPkt.write<uint8_t>(false);
-                entryPkt.write<uint8_t>(true);
-                entryPkt.write<uint8_t>(false);
+                entryPkt.write<uint8_t>(mod.isDirectory);
+                entryPkt.write<uint8_t>(mod.pausable);
+                entryPkt.write<uint8_t>(mod.ignoreScriptWarnings);
                 entryPkt.write<uint16_t>(mod.files.size());
                 entryPkt.sendBuffer();
 

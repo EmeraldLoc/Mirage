@@ -1,5 +1,6 @@
 #include "network.hpp"
 #include "packet.hpp"
+#include "log.hpp"
 
 std::array<NetworkPlayer, MAX_PLAYERS> gNetworkPlayers;
 std::array<sockaddr_in, MAX_PLAYERS> gNetworkPlayerSockets;
@@ -28,7 +29,7 @@ void updateNetwork() {
             it->sendAttempts++;
 
             if (it->sendAttempts >= 15) {
-                std::cout << "Dropping reliable packet seq " << it->seqId << ", max attempts reached\n";
+                Logging::log("SERVER", "Giving up on reliable packet with seq {}", it->seqId);
                 it = gReliablePackets.erase(it);
                 continue;
             }

@@ -1,7 +1,7 @@
 #include "server.hpp"
 #include "packet.hpp"
 #include "network.hpp"
-#include <iostream>
+#include "log.hpp"
 
 CoopServer::CoopServer(int p) : port(p), udpSocket(p) {}
 
@@ -9,7 +9,7 @@ void CoopServer::runLoop() {
     uint8_t buffer[PACKET_LENGTH];
     sockaddr_in clientAddr;
 
-    std::cout << "Server listening on port " << port << std::endl;
+    Logging::log("SERVER", "Starting server on port {}", port);
 
     while (true) {
         ssize_t received = udpSocket.receive(buffer, sizeof(buffer), clientAddr);

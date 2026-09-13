@@ -1,5 +1,6 @@
 #include "config.hpp"
 #include "json.hpp"
+#include "log.hpp"
 #include <iostream>
 
 using json = nlohmann::json;
@@ -40,9 +41,9 @@ void ServerConfig::read(const std::string &filename) {
 
             if (mod.load(modPath)) {
                 mods.push_back(mod);
-                std::cout << "Loaded mod " << mod.name << '\n';
+                Logging::log("CONFIG", "Loaded mod {}", mod.name);
             } else {
-                std::cout << "Failed to open mod from file/path: " << modPath << '\n';
+                Logging::log("CONFIG", "Failed to open mod {}", mod.name);
             }
         }
     }

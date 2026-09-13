@@ -2,6 +2,7 @@
 #include "network.hpp"
 #include "config.hpp"
 #include "savefile.hpp"
+#include "log.hpp"
 #include <algorithm>
 #include <iostream>
 #include <ostream>
@@ -40,7 +41,7 @@ CoopPacket::CoopPacket(socket_t s, sockaddr_in a, const uint8_t *compData, size_
     uLongf destLen = dest.size();
     
     if (uncompress(dest.data(), &destLen, compData, compLen) != Z_OK) {
-        std::cout << "Failed to decompress packet" << std::endl;
+        Logging::log("SERVER", "Failed to decompress packet");
         return;
     }
     
@@ -332,7 +333,7 @@ void CoopPacket::handleInternal() {
         }
         case PACKET_MOD_LIST_REQUEST: {
             std::string version = read<std::string>(128);
-            std::cout << "Received mod list request:\n  Version: " << version.c_str() << std::endl;
+            Logging::log("SERVER", "Received mod list request:\n  Version: {} " , version);
 
             packetOrderedBegin();
 
@@ -416,7 +417,7 @@ void CoopPacket::handleInternal() {
                             file.seekg(fileReadOffset, std::ios::beg);
                             file.read(reinterpret_cast<char*>(&chunk[chunkFill]), fileReadLength);
                         } else {
-                            std::cout << "Failed to open mod file for download: " << modFile.realPath << std::endl;
+                            Logging::log("SERVER", "Failed to open mod file for download: {} " , modFile.realPath);
                         }
 
                         chunkFill += fileReadLength;
@@ -447,7 +448,7 @@ void CoopPacket::handleInternal() {
                     return sockaddrInEqual(address, addr);
                 }) != gNetworkPlayerSockets.end();
             if (exists) {
-                std::cout << "Received join request from already joined socket, ignoring" << std::endl;
+                Logging::log("SERVER", "Received join request from already joined socket, ignoring");
                 break;
             }
             std::string version = read<std::string>(128);
@@ -458,7 +459,7 @@ void CoopPacket::handleInternal() {
             }
             std::string name = read<std::string>(64);
 
-            std::cout << "Received join request:\n  Version: " << version.c_str() << "\n  Name: " << name.c_str() << std::endl;
+            Logging::log("SERVER", "Received join request:\n  Version: {}\n  Name: {}", version, name);
 
             uint8_t globalIndex = 0;
             uint8_t connectedCount = 0;
@@ -471,9 +472,8 @@ void CoopPacket::handleInternal() {
                 }
             }
 
-            std::cout << "Connections: " << (int)connectedCount << std::endl;
             if (!globalIndex) {
-                std::cout << "No available global indices, server full, dropping request from " << name << std::endl;
+                Logging::log("SERVER", "No available global indices, server full, dropping request from {}", name);
                 break;
             }
 
@@ -529,7 +529,7 @@ void CoopPacket::handleInternal() {
             break;
         }
         case PACKET_NETWORK_PLAYERS_REQUEST: {
-            std::cout << "Received network players request" << std::endl;
+            Logging::log("SERVER", "Received network players request");
 
             uint8_t connectedCount = 0;
             for (const auto &player : gNetworkPlayers) {
@@ -541,8 +541,7 @@ void CoopPacket::handleInternal() {
             auto outPkt = CoopPacket::createOutgoing(sock, addr, PACKET_NETWORK_PLAYERS, true, PLMT_NONE);
             outPkt.write<uint8_t>(connectedCount);
             for (const auto &player : gNetworkPlayers) {
-                if (!player.connected || sockaddrInEqual(addr, gNetworkPlayerSockets[player.globalIndex])) continue;
-                std::cout << "Sent player '" << player.name << "'  " << (int)player.globalIndex << std::endl;
+                if (!player.connected || sockaddrInEqual(addr, gNetworkPlayerSockets[player.globalIndex])) continue;                
                 outPkt.write<uint8_t>(player.type);
                 outPkt.write<uint8_t>(player.globalIndex);
                 outPkt.write<uint16_t>(player.currLevelAreaSeqId);
@@ -571,7 +570,7 @@ void CoopPacket::handleInternal() {
             outPkt.write<uint8_t>(globalIndex);
             outPkt.write<double>(timestamp);
 
-            std::cout << "Ping from id " << (int)globalIndex << std::endl;
+            Logging::log("SERVER", "Received ping from {}", gNetworkPlayers[globalIndex].name);
 
             outPkt.sendBuffer();
             break;
@@ -584,7 +583,7 @@ void CoopPacket::handleInternal() {
 
             NetworkPlayer *np = getNetworkPlayerFromAddr(addr);
             if (np) {
-                std::cout << "Change Level from id " << (int)np->globalIndex << std::endl;
+                Logging::log("SERVER", "Received level change from {}", np->name);
                 np->currCourseNum = courseNum;
                 np->currActNum = actNum;
                 np->currLevelNum = levelNum;
@@ -615,7 +614,7 @@ void CoopPacket::handleInternal() {
 
             NetworkPlayer *np = &gNetworkPlayers[globalIndex];
 
-            std::cout << "Area inform from id " << (int)globalIndex << std::endl;
+            Logging::log("SERVER", "Received area inform from {}", np->name);
 
             np->currLevelAreaSeqId = seq;
             np->currLevelSyncValid = levelSyncValid;
@@ -643,7 +642,7 @@ void CoopPacket::handleInternal() {
             uint16_t msgLen = read<uint16_t>();
             if (msgLen >= MAX_CHAT_MSG_LENGTH - 1) { msgLen = MAX_CHAT_MSG_LENGTH - 1; }
             std::string msg = read<std::string>(msgLen);
-            std::cout << "Message from " << gNetworkPlayers[globalIndex].name << ": " << msg << std::endl;
+            Logging::log("SERVER", "Received message from {}: {}", gNetworkPlayers[globalIndex].name, msg);
 
             auto outPkt = CoopPacket::createOutgoing(sock, addr, PACKET_CHAT, true, PLMT_NONE);
             outPkt.write<uint8_t>(globalIndex);
@@ -658,7 +657,7 @@ void CoopPacket::handleInternal() {
             outPkt.write<uint8_t>(globalIndex);
             outPkt.sendBufferToAll();
             if (globalIndex < MAX_PLAYERS) {
-                std::cout << "Player '" << gNetworkPlayers[globalIndex].name << "' " << "disconnected" << std::endl;
+                Logging::log("SERVER", "Player {} disconnected", gNetworkPlayers[globalIndex].name);
                 gNetworkPlayers[globalIndex].connected = false;
                 gNetworkPlayers[globalIndex].type = 0;
                 gNetworkPlayers[globalIndex].globalIndex = 0;
@@ -679,7 +678,7 @@ void CoopPacket::handleInternal() {
             break;
         }
         default: {
-            std::cout << "Received packet type " << (int)pktType << " with flags " << (int)flags << std::endl;
+            Logging::log("SERVER", "Received unimplemented packet type {}", pktType);
             break;
         }
     }

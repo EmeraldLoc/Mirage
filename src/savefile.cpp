@@ -5,7 +5,7 @@
 
 CoopSaveFile gSaveFile;
 
-static uint16_t calculate_checksum(const uint8_t *data, size_t size) {
+static uint16_t calculateChecksum(const uint8_t *data, size_t size) {
     uint16_t chksum = 0;
     for (size_t i = 0; i < size - 2; ++i) {
         chksum += data[i];
@@ -62,7 +62,7 @@ void CoopSaveFile::save() {
 
         std::memcpy(&buffer[offset + 52], &magic, sizeof(uint16_t));
 
-        uint16_t chksum = calculate_checksum(&buffer[offset], SAVE_FILE_SIZE);
+        uint16_t chksum = calculateChecksum(&buffer[offset], SAVE_FILE_SIZE);
         std::memcpy(&buffer[offset + 54], &chksum, sizeof(uint16_t));
     }
 

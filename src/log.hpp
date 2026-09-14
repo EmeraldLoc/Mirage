@@ -1,4 +1,6 @@
-#include <print>
+#pragma once
+
+#include <iostream>
 #include <format>
 #include <string>
 
@@ -14,6 +16,6 @@ namespace Logging {
             str.erase(pos, end - pos + 1);
         }
 
-        std::println("[{}] {}", title, str);
+        std::cout << std::format("[{}] {}\n", title, str);
     }
 }

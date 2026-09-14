@@ -3,7 +3,7 @@ TARGET := CoopFakeLobby
 BUILD_DIR := build
 CXX := clang++
 ASAN := 0
-CXXFLAGS := -O3 -Iinclude -g -std=c++23
+CXXFLAGS := -O3 -Iinclude -std=c++23
 LDFLAGS := -lz
 
 ifeq ($(ASAN),1)
@@ -12,6 +12,7 @@ ifeq ($(ASAN),1)
 endif
 
 ifeq ($(OS),Windows_NT)
+	CXX := g++
     LDFLAGS += -lws2_32 -static
 endif
 

@@ -5,7 +5,6 @@
 #include "log.hpp"
 #include <algorithm>
 #include <iostream>
-#include <ostream>
 #include <zlib.h>
 #include <cstdint>
 
@@ -267,9 +266,29 @@ void CoopPacket::handleInternal() {
         case PACKET_PLAYER:
             forwardPacket(PACKET_PLAYER, true, PLMT_AREA, senderGlobalIndex);
             break;
-        case PACKET_PLAYER_SETTINGS:
-            forwardPacket(PACKET_PLAYER_SETTINGS, true, PLMT_NONE, senderGlobalIndex);
+        case PACKET_PLAYER_SETTINGS: {
+            uint8_t globalIndex = read<uint8_t>();
+            std::string name = read<std::string>(64);
+            uint8_t model = read<uint8_t>();
+            PlayerPalette palette;
+            for (int i = 0; i < 24; i++) {
+                palette.colors[i] = read<uint8_t>();
+            }
+
+            gNetworkPlayers[globalIndex].name = name;
+            gNetworkPlayers[globalIndex].modelIndex = model;
+            std::memcpy(gNetworkPlayers[globalIndex].palette.colors, palette.colors, 24);
+
+            auto outPkt = CoopPacket::createOutgoing(sock, addr, PACKET_PLAYER_SETTINGS, true, PLMT_NONE);
+            outPkt.write<uint8_t>(globalIndex);
+            outPkt.write<std::string>(name, 64);
+            outPkt.write<uint8_t>(model);
+            for (int i = 0; i < 24; i++) {
+                outPkt.write<uint8_t>(palette.colors[i]);
+            }
+            outPkt.sendToAll();
             break;
+        }
         case PACKET_OBJECT:
             forwardPacket(PACKET_OBJECT, true, PLMT_AREA, senderGlobalIndex);
             break;
@@ -498,7 +517,7 @@ void CoopPacket::handleInternal() {
             np->globalIndex = globalIndex;
             np->name = name;
             np->modelIndex = model;
-            memcpy(np->palette.colors, palette.colors, 24);
+            std::memcpy(np->palette.colors, palette.colors, 24);
 
             auto broadcastPkt = CoopPacket::createOutgoing(sock, addr, PACKET_NETWORK_PLAYERS, true, PLMT_NONE);
             broadcastPkt.write<uint8_t>(1);

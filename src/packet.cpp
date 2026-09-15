@@ -16,7 +16,11 @@ static uint16_t sCurrentOrderedGroupId = 0;
 static uint16_t sCurrentOrderedSeqId = 0;
 static uint16_t sNextSeqNum = 1;
 
-inline bool getBit(uint8_t val, uint8_t num) {
+static inline bool isValidGlobalIndex(int idx) {
+    return idx >= 0 && idx < MAX_PLAYERS;
+}
+
+static inline bool getBit(uint8_t val, uint8_t num) {
     return (val >> num) & 1;
 }
 
@@ -35,6 +39,8 @@ void packetOrderedEnd() {
 }
 
 CoopPacket::CoopPacket(socket_t s, sockaddr_in a, const uint8_t *compData, size_t compLen) : sock(s), addr(a) {
+    if (!compData || compLen == 0) return;
+
     std::vector<uint8_t> dest(65536);
     uLongf destLen = dest.size();
     
@@ -96,7 +102,9 @@ CoopPacket::CoopPacket(socket_t s, sockaddr_in a, uint8_t pType, bool reliable, 
     write<uint8_t>(initFlags);
     write<uint8_t>(PACKET_DESTINATION_BROADCAST);
 
-    NetworkPlayer *localNp = &gNetworkPlayers[asGlobalIndex];
+    int globalId = isValidGlobalIndex(asGlobalIndex) ? asGlobalIndex : 0;
+    NetworkPlayer *localNp = &gNetworkPlayers[globalId];
+
     if (sOrderedPackets) {
         uint8_t localGlobalIndex = localNp->globalIndex; 
         write<uint8_t>(localGlobalIndex); 
@@ -213,6 +221,8 @@ void CoopPacket::sendToAll() {
 }
 
 void CoopPacket::handle() {
+    if (rawData.empty()) return;
+
     if (seqId != 0 && pktType != PACKET_ACK) {
         auto ackPkt = CoopPacket::createOutgoing(sock, addr, PACKET_ACK, false, PLMT_NONE);
         ackPkt.write<uint16_t>(seqId);
@@ -253,7 +263,8 @@ void CoopPacket::forwardPacket(uint8_t pType, bool reliable, uint8_t levelMatchT
 }
 
 void CoopPacket::handleInternal() {
-    uint8_t senderGlobalIndex = getNetworkPlayerFromAddr(addr) ? getNetworkPlayerFromAddr(addr)->globalIndex : 0;
+    NetworkPlayer *senderNp = getNetworkPlayerFromAddr(addr);
+    uint8_t senderGlobalIndex = senderNp ? senderNp->globalIndex : 0;
 
     switch (pktType) {
         case PACKET_ACK: {
@@ -268,6 +279,8 @@ void CoopPacket::handleInternal() {
             break;
         case PACKET_PLAYER_SETTINGS: {
             uint8_t globalIndex = read<uint8_t>();
+            if (!isValidGlobalIndex(globalIndex)) break;
+
             std::string name = read<std::string>(64);
             uint8_t model = read<uint8_t>();
             PlayerPalette palette;
@@ -427,7 +440,9 @@ void CoopPacket::handleInternal() {
                         std::ifstream file(modFile.realPath, std::ios::binary);
                         if (file.is_open()) {
                             file.seekg(fileReadOffset, std::ios::beg);
-                            file.read(reinterpret_cast<char*>(&chunk[chunkFill]), fileReadLength);
+                            if (file.good()) {
+                                file.read(reinterpret_cast<char*>(&chunk[chunkFill]), fileReadLength);
+                            }
                         } else {
                             Logging::log("SERVER", "Failed to open mod file for download: {}", modFile.realPath);
                         }
@@ -484,7 +499,7 @@ void CoopPacket::handleInternal() {
                 }
             }
 
-            if (!globalIndex) {
+            if (!globalIndex || !isValidGlobalIndex(globalIndex)) {
                 Logging::log("SERVER", "No available global indices, server full, dropping request from {}", name);
                 break;
             }
@@ -510,7 +525,9 @@ void CoopPacket::handleInternal() {
             outPkt.write<uint8_t>(0);
 
             std::vector<uint8_t> eeprom = gSaveFile.getBuffer();
-            for (int i = 0; i < 512; i++) outPkt.write<uint8_t>(eeprom[i]);
+            for (int i = 0; i < 512; i++) {
+                outPkt.write<uint8_t>(eeprom[i]);
+            }
             outPkt.sendBack();
 
             np->connected = true;
@@ -553,7 +570,7 @@ void CoopPacket::handleInternal() {
             auto outPkt = CoopPacket::createOutgoing(sock, addr, PACKET_NETWORK_PLAYERS, true, PLMT_NONE);
             outPkt.write<uint8_t>(connectedCount);
             for (const auto &player : gNetworkPlayers) {
-                if (!player.connected || sockaddrInEqual(addr, gNetworkPlayerSockets[player.globalIndex])) continue;                
+                if (!player.connected || !isValidGlobalIndex(player.globalIndex) || sockaddrInEqual(addr, gNetworkPlayerSockets[player.globalIndex])) continue;                
                 outPkt.write<uint8_t>(player.type);
                 outPkt.write<uint8_t>(player.globalIndex);
                 outPkt.write<uint16_t>(player.currLevelAreaSeqId);
@@ -576,6 +593,8 @@ void CoopPacket::handleInternal() {
         }
         case PACKET_PING: {
             uint8_t globalIndex = read<uint8_t>();
+            if (!isValidGlobalIndex(globalIndex)) break;
+
             double timestamp = read<double>();
 
             auto outPkt = CoopPacket::createOutgoing(sock, addr, PACKET_PONG, false, PLMT_NONE);
@@ -617,6 +636,8 @@ void CoopPacket::handleInternal() {
         case PACKET_LEVEL_AREA_INFORM: {
             uint16_t seq = read<uint16_t>();
             uint8_t globalIndex = read<uint8_t>();
+            if (!isValidGlobalIndex(globalIndex)) break;
+
             int16_t courseNum = read<int16_t>();
             int16_t actNum = read<int16_t>();
             int16_t levelNum = read<int16_t>();
@@ -651,42 +672,47 @@ void CoopPacket::handleInternal() {
         }
         case PACKET_CHAT: {
             uint8_t globalIndex = read<uint8_t>();
+            if (!isValidGlobalIndex(globalIndex)) break;
+
             uint16_t msgLen = read<uint16_t>();
-            if (msgLen >= MAX_CHAT_MSG_LENGTH - 1) { msgLen = MAX_CHAT_MSG_LENGTH - 1; }
+            if (msgLen >= MAX_CHAT_MSG_LENGTH) {
+                msgLen = MAX_CHAT_MSG_LENGTH - 1;
+            }
             std::string msg = read<std::string>(msgLen);
             Logging::log("SERVER", "Received message from {}: {}", gNetworkPlayers[globalIndex].name, msg);
 
             auto outPkt = CoopPacket::createOutgoing(sock, addr, PACKET_CHAT, true, PLMT_NONE);
             outPkt.write<uint8_t>(globalIndex);
-            outPkt.write<uint16_t>(msgLen);
-            outPkt.write<std::string>(msg, msgLen);
+            outPkt.write<uint16_t>(static_cast<uint16_t>(msg.length()));
+            outPkt.write<std::string>(msg, msg.length());
             outPkt.sendToAll();
             break;
         }
         case PACKET_LEAVING: {
             uint8_t globalIndex = read<uint8_t>();
+            if (!isValidGlobalIndex(globalIndex)) break;
+
             auto outPkt = CoopPacket::createOutgoing(sock, addr, PACKET_LEAVING, true, PLMT_NONE);
             outPkt.write<uint8_t>(globalIndex);
             outPkt.sendToAll();
-            if (globalIndex < MAX_PLAYERS) {
-                Logging::log("SERVER", "Player {} disconnected", gNetworkPlayers[globalIndex].name);
-                gNetworkPlayers[globalIndex].connected = false;
-                gNetworkPlayers[globalIndex].type = 0;
-                gNetworkPlayers[globalIndex].globalIndex = 0;
-                gNetworkPlayers[globalIndex].currLevelAreaSeqId = 0;
-                gNetworkPlayers[globalIndex].currCourseNum = 0;
-                gNetworkPlayers[globalIndex].currActNum = 0;
-                gNetworkPlayers[globalIndex].currLevelNum = 0;
-                gNetworkPlayers[globalIndex].currAreaIndex = 0;
-                gNetworkPlayers[globalIndex].currLevelSyncValid = 0;
-                gNetworkPlayers[globalIndex].currAreaSyncValid = 0;
-                gNetworkPlayers[globalIndex].networkId = 0;
-                gNetworkPlayers[globalIndex].modelIndex = 0;
-                memset(gNetworkPlayers[globalIndex].palette.colors, 0x0, 24);
-                gNetworkPlayers[globalIndex].name = "";
-                gNetworkPlayers[globalIndex].discordId = "";
-                memset(&gNetworkPlayerSockets[globalIndex], 0x0, sizeof(sockaddr_in));
-            }
+
+            Logging::log("SERVER", "Player {} disconnected", gNetworkPlayers[globalIndex].name);
+            gNetworkPlayers[globalIndex].connected = false;
+            gNetworkPlayers[globalIndex].type = 0;
+            gNetworkPlayers[globalIndex].globalIndex = 0;
+            gNetworkPlayers[globalIndex].currLevelAreaSeqId = 0;
+            gNetworkPlayers[globalIndex].currCourseNum = 0;
+            gNetworkPlayers[globalIndex].currActNum = 0;
+            gNetworkPlayers[globalIndex].currLevelNum = 0;
+            gNetworkPlayers[globalIndex].currAreaIndex = 0;
+            gNetworkPlayers[globalIndex].currLevelSyncValid = 0;
+            gNetworkPlayers[globalIndex].currAreaSyncValid = 0;
+            gNetworkPlayers[globalIndex].networkId = 0;
+            gNetworkPlayers[globalIndex].modelIndex = 0;
+            memset(gNetworkPlayers[globalIndex].palette.colors, 0x0, 24);
+            gNetworkPlayers[globalIndex].name = "";
+            gNetworkPlayers[globalIndex].discordId = "";
+            memset(&gNetworkPlayerSockets[globalIndex], 0x0, sizeof(sockaddr_in));
             break;
         }
         default: {

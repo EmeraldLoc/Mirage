@@ -12,6 +12,7 @@ void CoopServer::runLoop() {
     Logging::log("SERVER", "Starting server on port {}", port);
 
     while (true) {
+        std::memset(&clientAddr, 0, sizeof(clientAddr));
         ssize_t received = udpSocket.receive(buffer, sizeof(buffer), clientAddr);
         
         if (received > 0) {

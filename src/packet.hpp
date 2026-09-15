@@ -1,10 +1,8 @@
 #pragma once
 
-#include <iostream>
 #include <vector>
 #include <string>
 #include <cstring>
-#include <array>
 #include <cstdint>
 #include <chrono>
 #include <map>
@@ -123,10 +121,10 @@ public:
     T read(size_t length = 0) {
         if constexpr(std::is_same_v<T, std::string>) {
             if (offset >= rawData.size()) return "";
-            size_t actualLen = std::min(length, rawData.size() - offset);
+            size_t available = rawData.size() - offset;
+            size_t actualLen = std::min(length, available);
             std::string val(reinterpret_cast<const char*>(rawData.data() + offset), actualLen);
-            offset += length;
-            if (offset > rawData.size()) offset = rawData.size();
+            offset += std::min(length, available);
             return val;
         } else {
             constexpr size_t sz = sizeof(T);
@@ -134,19 +132,10 @@ public:
                 offset = rawData.size();
                 return T(0);
             }
-            uint64_t rawVal = 0;
-            for (size_t i = 0; i < sz; ++i) {
-                rawVal |= ((uint64_t)rawData[offset + i] << (8 * i));
-            }
+            T val{};
+            std::memcpy(&val, rawData.data() + offset, sz);
             offset += sz;
-
-            if constexpr(std::is_floating_point_v<T>) {
-                T val;
-                std::memcpy(&val, &rawVal, sz);
-                return val;
-            } else {
-                return static_cast<T>(rawVal);
-            }
+            return val;
         }
     }
 
@@ -156,20 +145,15 @@ public:
             size_t strLen = val.length();
             outBuffer.reserve(outBuffer.size() + length);
             for (size_t i = 0; i < length; ++i) {
-                if (i < strLen) outBuffer.push_back(val[i]);
+                if (i < strLen) outBuffer.push_back(static_cast<uint8_t>(val[i]));
                 else outBuffer.push_back(0x00);
             }
         } else {
             constexpr size_t sz = sizeof(T);
             outBuffer.reserve(outBuffer.size() + sz);
-            uint64_t rawVal = 0;
-            if constexpr(std::is_floating_point_v<T>) {
-                std::memcpy(&rawVal, &val, sz);
-            } else {
-                rawVal = static_cast<uint64_t>(val);
-            }
+            const uint8_t *ptr = reinterpret_cast<const uint8_t*>(&val);
             for (size_t i = 0; i < sz; ++i) {
-                outBuffer.push_back((rawVal >> (8 * i)) & 0xFF);
+                outBuffer.push_back(ptr[i]);
             }
         }
     }

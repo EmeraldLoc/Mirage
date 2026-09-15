@@ -90,6 +90,12 @@ private:
     size_t offset = 3;
 
     CoopPacket(socket_t s, sockaddr_in a, uint8_t pType, bool reliable, uint8_t levelMatchType, int asGlobalIndex);
+
+    void forwardPacket(uint8_t pType, bool reliable = true, uint8_t levelMatchType = PLMT_NONE, int asGlobalIndex = 0);
+    std::vector<uint8_t> compressAndHash();
+    void handleInternal();
+    void processOrderedAndHandle();
+    void setOrderedData();
 public:
     uint8_t pktType = 0;
     uint16_t seqId = 0;
@@ -118,7 +124,7 @@ public:
         if constexpr(std::is_same_v<T, std::string>) {
             if (offset >= rawData.size()) return "";
             size_t actualLen = std::min(length, rawData.size() - offset);
-            std::string val(rawData.begin() + offset, rawData.begin() + offset + actualLen);
+            std::string val(reinterpret_cast<const char*>(rawData.data() + offset), actualLen);
             offset += length;
             if (offset > rawData.size()) offset = rawData.size();
             return val;
@@ -147,12 +153,15 @@ public:
     template<typename T>
     void write(const T &val, size_t length = 0) {
         if constexpr(std::is_same_v<T, std::string>) {
+            size_t strLen = val.length();
+            outBuffer.reserve(outBuffer.size() + length);
             for (size_t i = 0; i < length; ++i) {
-                if (i < val.length()) outBuffer.push_back(val[i]);
+                if (i < strLen) outBuffer.push_back(val[i]);
                 else outBuffer.push_back(0x00);
             }
         } else {
             constexpr size_t sz = sizeof(T);
+            outBuffer.reserve(outBuffer.size() + sz);
             uint64_t rawVal = 0;
             if constexpr(std::is_floating_point_v<T>) {
                 std::memcpy(&rawVal, &val, sz);
@@ -165,13 +174,11 @@ public:
         }
     }
 
-    void sendBuffer();
-    void sendBufferToAll();
-    void setOrderedData();
+    void sendTo(sockaddr_in dest);
+    void sendTo(int globalIdx);
+    void sendBack();
+    void sendToAll();
     void handle();
-    void forwardPacket(uint8_t pType, bool reliable = true, uint8_t levelMatchType = PLMT_NONE, int asGlobalIndex = 0);
-    void handleInternal();
-    void processOrderedAndHandle();
 };
 
 struct ReliablePacket {

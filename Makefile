@@ -1,5 +1,5 @@
 DIRECTORIES := src
-TARGET := CoopFakeLobby
+TARGET := Mirage
 BUILD_DIR := build
 CXX := clang++
 ASAN := 0

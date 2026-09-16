@@ -4,7 +4,7 @@ BUILD_DIR := build
 CXX := clang++
 ASAN := 0
 CXXFLAGS := -O3 -Iinclude -std=c++23
-LDFLAGS := -lz -Llib -lcoopnet -ljuice
+LDFLAGS := -lz
 
 ifeq ($(ASAN),1)
 	CXXFLAGS += -g -fsanitize=address -fsanitize=undefined
@@ -13,7 +13,9 @@ endif
 
 ifeq ($(OS),Windows_NT)
 	CXX := g++
-    LDFLAGS += -lws2_32 -static
+    LDFLAGS += -lws2_32 -static -Llib/win64 -lcoopnet -ljuice
+else
+	LDFLAGS += -Llib/linux -lcoopnet -ljuice
 endif
 
 SOURCES := $(wildcard $(addsuffix /*.cpp,$(DIRECTORIES)))

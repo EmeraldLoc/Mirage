@@ -152,6 +152,10 @@ void CoopNetNetworkSystem::onError(enum MPacketErrorNumber error, uint64_t tag) 
     Logging::log("NETWORK", "CoopNet Error: {} Tag: {}", (int)error, tag);
 }
 
+void CoopNetNetworkSystem::onPeerConnect(uint64_t peerId) {
+    Logging::log("NETWORK", "Peer connected: {}", peerId);
+}
+
 void CoopNetNetworkSystem::onPeerDisconnect(uint64_t peerId) {
     Logging::log("NETWORK", "Peer disconnected: {}", peerId);
     NetworkPlayer *np = getNetworkPlayerFromPeerId(peerId);
@@ -179,6 +183,7 @@ bool CoopNetNetworkSystem::init(int port) {
     gCoopNetCallbacks.OnLobbyJoined = CoopNetNetworkSystem::onLobbyJoined;
     gCoopNetCallbacks.OnLobbyLeft = CoopNetNetworkSystem::onLobbyLeft;
     gCoopNetCallbacks.OnError = CoopNetNetworkSystem::onError;
+    gCoopNetCallbacks.OnPeerConnected = CoopNetNetworkSystem::onPeerConnect;
     gCoopNetCallbacks.OnPeerDisconnected = CoopNetNetworkSystem::onPeerDisconnect;
     gCoopNetCallbacks.OnLoadBalance = CoopNetNetworkSystem::onLoadBalance;
 

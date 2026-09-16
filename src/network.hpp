@@ -36,6 +36,13 @@ struct NetworkPlayer {
     std::string discordId;
 };
 
+enum NetworkPlayerType {
+    NPT_UNKNOWN,
+    NPT_LOCAL,
+    NPT_SERVER,
+    NPT_CLIENT,
+};
+
 extern std::array<NetworkPlayer, MAX_PLAYERS> gNetworkPlayers;
 extern std::array<sockaddr_in, MAX_PLAYERS> gNetworkPlayerSockets;
 extern std::array<uint64_t, MAX_PLAYERS> gNetworkPlayerPeerIds;
@@ -50,6 +57,7 @@ public:
     virtual void sendTo(const sockaddr_in &addr, uint64_t peerId, const uint8_t *data, size_t len) = 0;
     virtual bool isSameEndpoint(const sockaddr_in &a1, uint64_t p1, const sockaddr_in &a2, uint64_t p2) = 0;
     virtual NetworkPlayer *getPlayerFromSender(const sockaddr_in &a, uint64_t peerId) = 0;
+    virtual bool requireServerBroadcast() const = 0;
 
     void sendToPlayer(int globalIndex, const uint8_t *data, size_t len);
     void sendToAll(const uint8_t *data, size_t len, int ignoreIndex = -1);
@@ -67,6 +75,7 @@ public:
     void sendTo(const sockaddr_in &addr, uint64_t peerId, const uint8_t *data, size_t len) override;
     bool isSameEndpoint(const sockaddr_in &a1, uint64_t p1, const sockaddr_in &a2, uint64_t p2) override;
     NetworkPlayer *getPlayerFromSender(const sockaddr_in &a, uint64_t peerId) override;
+    bool requireServerBroadcast() const override { return true; }
 };
 
 class CoopNetNetworkSystem : public NetworkSystem {
@@ -81,6 +90,7 @@ private:
     static void onLobbyJoined(uint64_t lobbyId, uint64_t userId, uint64_t ownerId, uint64_t destId);
     static void onLobbyLeft(uint64_t lobbyId, uint64_t userId);
     static void onError(enum MPacketErrorNumber error, uint64_t tag);
+    static void onPeerConnect(uint64_t peerId);
     static void onPeerDisconnect(uint64_t peerId);
     static void onLoadBalance(const char* host, uint32_t port);
 public:
@@ -90,6 +100,7 @@ public:
     void sendTo(const sockaddr_in &addr, uint64_t peerId, const uint8_t *data, size_t len) override;
     bool isSameEndpoint(const sockaddr_in &a1, uint64_t p1, const sockaddr_in &a2, uint64_t p2) override;
     NetworkPlayer *getPlayerFromSender(const sockaddr_in &a, uint64_t peerId) override;
+    bool requireServerBroadcast() const override { return false; }
 
     void setLocalUserId(uint64_t id) { localUserId = id; }
     void setLocalLobbyId(uint64_t id) { localLobbyId = id; }

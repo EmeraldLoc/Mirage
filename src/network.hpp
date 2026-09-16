@@ -3,10 +3,14 @@
 #include <cstdint>
 #include <string>
 #include <array>
-
 #include "socket.hpp"
 
 constexpr int MAX_PLAYERS = 16;
+
+enum NetworkSystemType {
+    SYS_SOCKET = 0,
+    SYS_COOPNET = 1
+};
 
 struct PlayerPalette {
     uint8_t colors[24];
@@ -30,8 +34,19 @@ struct NetworkPlayer {
     std::string discordId;
 };
 
+extern NetworkSystemType gNetworkSystemType;
 extern std::array<NetworkPlayer, MAX_PLAYERS> gNetworkPlayers;
 extern std::array<sockaddr_in, MAX_PLAYERS> gNetworkPlayerSockets;
+extern std::array<uint64_t, MAX_PLAYERS> gNetworkPlayerPeerIds;
 
-extern NetworkPlayer *getNetworkPlayerFromAddr(const sockaddr_in &a);
-extern void updateNetwork();
+bool networkInit(NetworkSystemType type, int port);
+void networkShutdown();
+void updateNetwork();
+
+NetworkPlayer* getNetworkPlayerFromAddr(const sockaddr_in &a);
+NetworkPlayer* getNetworkPlayerFromPeerId(uint64_t peerId);
+NetworkPlayer* getNetworkPlayerFromSender(const sockaddr_in &a, uint64_t peerId);
+
+void networkSendTo(sockaddr_in addr, uint64_t peerId, const uint8_t* data, size_t len);
+void networkSendToPlayer(int globalIndex, const uint8_t* data, size_t len);
+void networkSendToAll(const uint8_t* data, size_t len, int ignoreIndex = -1);

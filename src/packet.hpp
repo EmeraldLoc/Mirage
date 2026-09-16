@@ -81,13 +81,14 @@ enum PacketLevelMatchType {
 
 class CoopPacket {
 private:
-    socket_t sock;
-    sockaddr_in addr;
+    socket_t sock = 0;
+    sockaddr_in addr{};
+    uint64_t peerId = 0;
     std::vector<uint8_t> rawData;
     std::vector<uint8_t> outBuffer;
     size_t offset = 3;
 
-    CoopPacket(socket_t s, sockaddr_in a, uint8_t pType, bool reliable, uint8_t levelMatchType, int asGlobalIndex);
+    CoopPacket(socket_t s, sockaddr_in a, uint64_t pId, uint8_t pType, bool reliable, uint8_t levelMatchType, int asGlobalIndex);
 
     void forwardPacket(uint8_t pType, bool reliable = true, uint8_t levelMatchType = PLMT_NONE, int asGlobalIndex = 0);
     std::vector<uint8_t> compressAndHash();
@@ -114,8 +115,8 @@ public:
     int16_t levelNum = 0;
     uint8_t areaIndex = 0;
 
-    CoopPacket(socket_t s, sockaddr_in a, const uint8_t *compData, size_t compLen);
-    static CoopPacket createOutgoing(socket_t s, sockaddr_in a, uint8_t pType, bool reliable = false, uint8_t levelMatchType = PLMT_NONE, int asGlobalIndex = 0);
+    CoopPacket(socket_t s, sockaddr_in a, uint64_t pId, const uint8_t *compData, size_t compLen);
+    static CoopPacket createOutgoing(socket_t s, sockaddr_in a, uint64_t pId, uint8_t pType, bool reliable = false, uint8_t levelMatchType = PLMT_NONE, int asGlobalIndex = 0);
 
     template<typename T>
     T read(size_t length = 0) {
@@ -158,7 +159,7 @@ public:
         }
     }
 
-    void sendTo(sockaddr_in dest);
+    void sendTo(sockaddr_in dest, uint64_t destPeerId);
     void sendTo(int globalIdx);
     void sendBack();
     void sendToAll();
@@ -169,6 +170,7 @@ struct ReliablePacket {
     uint16_t seqId;
     socket_t sock;
     sockaddr_in addr;
+    uint64_t peerId;
     std::vector<uint8_t> compressedData;
     std::chrono::steady_clock::time_point lastSend;
     int sendAttempts;

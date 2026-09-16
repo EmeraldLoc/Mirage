@@ -19,6 +19,7 @@ void ServerConfig::read(const std::string &filename) {
     file >> data;
 
     port = data.value("port", port);
+    networkSystem = data.value("networkSystem", networkSystem);
     version = data.value("version", version);
     name = data.value("name", name);
     savefileIndex = data.value("savefileIndex", savefileIndex);
@@ -52,6 +53,7 @@ void ServerConfig::read(const std::string &filename) {
 void ServerConfig::write(const std::string &filename) {
     json data = {
         {"port", port},
+        {"networkSystem", networkSystem},
         {"version", version},
         {"name", name},
         {"savefileIndex", savefileIndex},

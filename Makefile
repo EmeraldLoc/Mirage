@@ -4,7 +4,7 @@ BUILD_DIR := build
 CXX := clang++
 ASAN := 0
 CXXFLAGS := -O3 -Iinclude -std=c++23
-LDFLAGS := -lz
+LDFLAGS := -lz -Llib -lcoopnet -ljuice
 
 ifeq ($(ASAN),1)
 	CXXFLAGS += -g -fsanitize=address -fsanitize=undefined

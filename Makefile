@@ -13,7 +13,7 @@ endif
 
 ifeq ($(OS),Windows_NT)
 	CXX := g++
-    LDFLAGS += -lws2_32 -static -Llib/win64 -lcoopnet -ljuice
+	LDFLAGS += -Llib/win64 -lcoopnet -ljuice -lws2_32 -liphlpapi -lbcrypt -static
 else
 	LDFLAGS += -Llib/linux -lcoopnet -ljuice
 endif

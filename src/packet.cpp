@@ -175,7 +175,9 @@ void CoopPacket::sendTo(sockaddr_in dest, uint64_t destPeerId) {
     auto compressed = compressAndHash();
     if (compressed.empty()) return;
 
-    networkSendTo(dest, destPeerId, compressed.data(), compressed.size());
+    if (gNetworkSystem) {
+        gNetworkSystem->sendTo(dest, destPeerId, compressed.data(), compressed.size());
+    }
 
     if (this->isReliable && this->seqId != 0) {
         gReliablePackets.push_back({
@@ -208,16 +210,16 @@ void CoopPacket::sendToAll() {
     for (int i = 1; i < MAX_PLAYERS; i++) {
         if (!gNetworkPlayers[i].connected) continue;
 
-        if (gNetworkSystemType == SYS_COOPNET) {
-            if (gNetworkPlayerPeerIds[i] == peerId) continue;
-        } else {
-            if (sockaddrInEqual(addr, gNetworkPlayerSockets[i])) continue;
+        if (gNetworkSystem && gNetworkSystem->isSameEndpoint(addr, peerId, gNetworkPlayerSockets[i], gNetworkPlayerPeerIds[i])) {
+            continue;
         }
 
         const sockaddr_in &dest = gNetworkPlayerSockets[i];
         uint64_t destPeerId = gNetworkPlayerPeerIds[i];
 
-        networkSendTo(dest, destPeerId, compressed.data(), compressed.size());
+        if (gNetworkSystem) {
+            gNetworkSystem->sendTo(dest, destPeerId, compressed.data(), compressed.size());
+        }
 
         if (this->isReliable && this->seqId != 0) {
             gReliablePackets.push_back({
@@ -278,7 +280,7 @@ void CoopPacket::forwardPacket(uint8_t pType, bool reliable, uint8_t levelMatchT
 }
 
 void CoopPacket::handleInternal() {
-    NetworkPlayer *senderNp = getNetworkPlayerFromSender(addr, peerId);
+    NetworkPlayer *senderNp = gNetworkSystem ? gNetworkSystem->getPlayerFromSender(addr, peerId) : nullptr;
     uint8_t senderGlobalIndex = senderNp ? senderNp->globalIndex : 0;
 
     switch (pktType) {
@@ -286,11 +288,7 @@ void CoopPacket::handleInternal() {
             uint16_t ackedSeq = read<uint16_t>();
             gReliablePackets.remove_if([this, ackedSeq](const ReliablePacket &p) {
                 if (p.seqId != ackedSeq) return false;
-                if (gNetworkSystemType == SYS_COOPNET) {
-                    return p.peerId == this->peerId;
-                } else {
-                    return sockaddrInEqual(p.addr, this->addr);
-                }
+                return gNetworkSystem ? gNetworkSystem->isSameEndpoint(p.addr, p.peerId, this->addr, this->peerId) : false;
             });
             break;
         }
@@ -490,12 +488,7 @@ void CoopPacket::handleInternal() {
             break;
         }
         case PACKET_JOIN_REQUEST: {
-            bool exists = false;
-            if (gNetworkSystemType == SYS_COOPNET) {
-                exists = (getNetworkPlayerFromPeerId(peerId) != nullptr);
-            } else {
-                exists = (getNetworkPlayerFromAddr(addr) != nullptr);
-            }
+            bool exists = (gNetworkSystem && gNetworkSystem->getPlayerFromSender(addr, peerId) != nullptr);
 
             if (exists) {
                 Logging::log("SERVER", "Received join request from already joined client, ignoring");
@@ -596,10 +589,8 @@ void CoopPacket::handleInternal() {
             for (const auto &player : gNetworkPlayers) {
                 if (!player.connected || !isValidGlobalIndex(player.globalIndex)) continue;
 
-                if (gNetworkSystemType == SYS_COOPNET) {
-                    if (gNetworkPlayerPeerIds[player.globalIndex] == peerId) continue;
-                } else {
-                    if (sockaddrInEqual(addr, gNetworkPlayerSockets[player.globalIndex])) continue;
+                if (gNetworkSystem && gNetworkSystem->isSameEndpoint(addr, peerId, gNetworkPlayerSockets[player.globalIndex], gNetworkPlayerPeerIds[player.globalIndex])) {
+                    continue;
                 }
 
                 outPkt.write<uint8_t>(player.type);
@@ -643,7 +634,7 @@ void CoopPacket::handleInternal() {
             int16_t levelNum = read<int16_t>();
             int16_t areaIndex = read<int16_t>();
 
-            NetworkPlayer *np = getNetworkPlayerFromSender(addr, peerId);
+            NetworkPlayer *np = gNetworkSystem ? gNetworkSystem->getPlayerFromSender(addr, peerId) : nullptr;
             if (np) {
                 Logging::log("SERVER", "Received level change from {}", np->name);
                 np->currCourseNum = courseNum;

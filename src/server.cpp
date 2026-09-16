@@ -9,8 +9,6 @@
 CoopServer::CoopServer(int p) : port(p) {}
 
 void CoopServer::runLoop() {
-    Logging::log("SERVER", "Starting server on port {}", port);
-
     NetworkSystemType type = (gServerConfig.networkSystem == 1) ? SYS_COOPNET : SYS_SOCKET;
     if (!networkInit(type, port)) {
         Logging::log("SERVER", "Failed to initialize network system!");
@@ -18,7 +16,9 @@ void CoopServer::runLoop() {
     }
 
     while (true) {
-        updateNetwork();
+        if (gNetworkSystem) {
+            gNetworkSystem->update();
+        }
         std::this_thread::sleep_for(std::chrono::milliseconds(33));
     }
 

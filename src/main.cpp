@@ -13,7 +13,6 @@ int main() {
     gNetworkPlayers[0].name = gServerConfig.name;
     gNetworkPlayers[0].currLevelNum = 16;
     gNetworkPlayers[0].currAreaIndex = 1;
-    memset(gNetworkPlayers[0].palette.colors, 0xff, 24);
 
     gSaveFile.setIndex(gServerConfig.savefileIndex);
     gSaveFile.load();

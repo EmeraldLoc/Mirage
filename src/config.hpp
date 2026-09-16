@@ -14,7 +14,8 @@ public:
     int port = 7777;
     int networkSystem = 0;
     std::string version = "v1.5.1";
-    std::string name = "Server";
+    std::string name = "Mirage";
+    std::string password = "";
     int savefileIndex = 1;
     int playerInteractions = 1;
     int bouncyBounds = 0;

@@ -5,27 +5,9 @@
 #include <regex>
 #include <string>
 
-#ifdef _WIN32
-#include <windows.h>
-
-// Enables ANSI/VT escape sequences on Windows consoles
-inline void enableVTMode(void) {
-    HANDLE hOut = GetStdHandle(STD_OUTPUT_HANDLE);
-    if (hOut == INVALID_HANDLE_VALUE) return;
-    DWORD dwMode = 0;
-    if (!GetConsoleMode(hOut, &dwMode)) return;
-    dwMode |= ENABLE_VIRTUAL_TERMINAL_PROCESSING;
-    SetConsoleMode(hOut, dwMode);
-}
-#else
-inline void enableVTMode(void) {}
-#endif
-
 namespace Logging {
     template <typename... Args>
     void log(const std::string &title, std::format_string<Args...> fmt, Args &&...args) {
-        static bool vtInit = (enableVTMode(), true);
-
         std::string str = std::format(fmt, std::forward<Args>(args)...);
 
         std::regex pattern(R"(\\#(?:([0-9a-fA-F]{6})|([0-9a-fA-F]{3}))\\|(\\#\\))");

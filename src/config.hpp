@@ -12,7 +12,7 @@ const std::string SERVER_CONFIGFILE = "config.json";
 class ServerConfig {
 public:
     int port = 7777;
-    int networkSystem = 1;
+    int networkSystem = 0;
     std::string version = "v1.5.1";
     std::string name = "Mirage";
     std::string description = "";

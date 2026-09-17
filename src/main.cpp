@@ -10,9 +10,10 @@ static void handleSignal(int sig) {
     gServerRunning.store(false);
 }
 
-int main() {
+int main(int argc, char *argv[]) {
     std::signal(SIGINT, handleSignal);
     std::signal(SIGTERM, handleSignal);
+
     gServerConfig.read(SERVER_CONFIGFILE);
 
     gNetworkPlayers[0].type = NPT_LOCAL;

@@ -15,6 +15,7 @@ public:
     int networkSystem = 1;
     std::string version = "v1.5.1";
     std::string name = "Mirage";
+    std::string description = "";
     std::string password = "";
     int savefileIndex = 1;
     int playerInteractions = 1;

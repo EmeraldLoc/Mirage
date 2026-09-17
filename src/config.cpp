@@ -22,6 +22,7 @@ void ServerConfig::read(const std::string &filename) {
     networkSystem = data.value("networkSystem", networkSystem);
     version = data.value("version", version);
     name = data.value("name", name);
+    description = data.value("description", description);
     password = data.value("password", password);
     savefileIndex = data.value("savefileIndex", savefileIndex);
     playerInteractions = data.value("playerInteractions", playerInteractions);
@@ -57,6 +58,7 @@ void ServerConfig::write(const std::string &filename) {
         {"networkSystem", networkSystem},
         {"version", version},
         {"name", name},
+        {"description", description},
         {"password", password},
         {"savefileIndex", savefileIndex},
         {"playerInteractions", playerInteractions},

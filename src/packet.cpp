@@ -730,7 +730,7 @@ void CoopPacket::execute() {
                 msgLen = MAX_CHAT_MSG_LENGTH - 1;
             }
             std::string msg = read<std::string>(msgLen);
-            Logging::log("SERVER", "Received message from {}: {}", gNetworkPlayers[globalIndex].name, msg);
+            Logging::log("SERVER", "Received message from {}\\#ffffff\\: {}", gNetworkPlayers[globalIndex].name, msg);
             break;
         }
         case PACKET_LEAVING: {

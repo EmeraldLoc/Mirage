@@ -27,6 +27,6 @@ The compiled binary will be saved in the `build/` directory.
 ```
 Or on Windows:
 ```bash
-./build/Mirage
+./build/Mirage.exe
 ```
-Note: Running it for the first time generates a JSON configuration file. Edit this file and restart Mirage to apply your custom settings.
+Note: Running it for the first time generates a JSON configuration file. Edit this file and restart Mirage to apply your  settings.

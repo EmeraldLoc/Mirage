@@ -50,6 +50,10 @@ CoopPacket::CoopPacket(socket_t s, sockaddr_in a, uint64_t pId, const uint8_t *c
         return;
     }
     
+    if (destLen >= 4) {
+        destLen -= 4;
+    }
+
     dest.resize(destLen);
     rawData = std::move(dest);
 
@@ -83,17 +87,6 @@ CoopPacket::CoopPacket(socket_t s, sockaddr_in a, uint64_t pId, const uint8_t *c
         actNum = read<uint8_t>();
         levelNum = read<int16_t>();
     }
-
-    /*if (destGlobalId != 0 && destGlobalId != PACKET_DESTINATION_BROADCAST && pktType != PACKET_MOD_LIST_REQUEST && pktType != PACKET_ACK) {
-        uint8_t plmt = PLMT_NONE;
-        if (levelAreaMustMatch) {
-            plmt = PLMT_AREA;
-        } else if (levelMustMatch) {
-            plmt = PLMT_LEVEL;
-        }
-        auto outPkt = CoopPacket::createOutgoing(sock, addr, peerId, pktType, true, plmt);
-        outPkt.sendTo(destGlobalId);
-    }*/
 }
 
 CoopPacket::CoopPacket(socket_t s, sockaddr_in a, uint64_t pId, uint8_t pType, bool reliable, uint8_t levelMatchType, int asGlobalIndex) : sock(s), addr(a), peerId(pId), pktType(pType), isReliable(reliable) {
@@ -142,6 +135,28 @@ CoopPacket::CoopPacket(socket_t s, sockaddr_in a, uint64_t pId, uint8_t pType, b
 
 CoopPacket CoopPacket::createOutgoing(socket_t s, sockaddr_in a, uint64_t pId, uint8_t pType, bool reliable, uint8_t levelMatchType, int asGlobalIndex) {
     return CoopPacket(s, a, pId, pType, reliable, levelMatchType, asGlobalIndex);
+}
+
+CoopPacket CoopPacket::duplicate() {
+    CoopPacket p = *this;
+    p.outBuffer = rawData;
+
+    if (seqId != 0) {
+        p.isReliable = true;
+        p.seqId = sNextSeqNum++;
+        if (sNextSeqNum == 0) sNextSeqNum = 1;
+    } else {
+        p.isReliable = false;
+        p.seqId = 0;
+    }
+
+    if (p.outBuffer.size() >= 3) {
+        p.outBuffer[1] = p.seqId & 0xFF;
+        p.outBuffer[2] = (p.seqId >> 8) & 0xFF;
+    }
+
+    p.offset = p.outBuffer.size();
+    return p;
 }
 
 void CoopPacket::setOrderedData() {
@@ -255,10 +270,21 @@ void CoopPacket::handle() {
         ackPkt.sendBack();
     }
 
+    if (destGlobalId != PACKET_DESTINATION_BROADCAST && destGlobalId != 0 && pktType != PACKET_ACK && pktType != PACKET_MOD_LIST_REQUEST) {
+        CoopPacket p = duplicate();
+        p.sendTo(destGlobalId);
+        return; 
+    }
+
     if (isOrdered) {
         processOrderedAndHandle();
     } else {
         handleInternal();
+    }
+
+    if (requestBroadcast && gNetworkSystem->requireServerBroadcast()) {
+        CoopPacket p = duplicate();
+        p.sendToAll();
     }
 }
 
@@ -280,17 +306,6 @@ void CoopPacket::processOrderedAndHandle() {
     }
 }
 
-void CoopPacket::forwardPacket(uint8_t pType, bool reliable, uint8_t levelMatchType, int asGlobalIndex) {
-    if (!gNetworkSystem || !gNetworkSystem->requireServerBroadcast()) {
-        return;
-    }
-    auto outPkt = CoopPacket::createOutgoing(sock, addr, peerId, pType, reliable, levelMatchType, asGlobalIndex);
-    if (offset < rawData.size()) {
-        outPkt.outBuffer.insert(outPkt.outBuffer.end(), rawData.begin() + offset, rawData.end());
-    }
-    outPkt.sendToAll();
-}
-
 void CoopPacket::handleInternal() {
     NetworkPlayer *senderNp = gNetworkSystem ? gNetworkSystem->getPlayerFromSender(addr, peerId) : nullptr;
     uint8_t senderGlobalIndex = senderNp ? senderNp->globalIndex : 0;
@@ -304,9 +319,19 @@ void CoopPacket::handleInternal() {
             });
             break;
         }
+
         case PACKET_PLAYER:
-            forwardPacket(PACKET_PLAYER, true, PLMT_AREA, senderGlobalIndex);
+        case PACKET_OBJECT:
+        case PACKET_COLLECT_COIN:
+        case PACKET_COLLECT_STAR:
+        case PACKET_COLLECT_ITEM:
+        case PACKET_SPAWN_OBJECTS:
+        case PACKET_SPAWN_STAR:
+        case PACKET_SPAWN_STAR_NLE:
+        case PACKET_LUA_SYNC_TABLE:
+        case PACKET_LEVEL_RESPAWN_INFO:
             break;
+
         case PACKET_PLAYER_SETTINGS: {
             uint8_t globalIndex = read<uint8_t>();
             if (!isValidGlobalIndex(globalIndex)) break;
@@ -321,46 +346,8 @@ void CoopPacket::handleInternal() {
             gNetworkPlayers[globalIndex].name = name;
             gNetworkPlayers[globalIndex].modelIndex = model;
             std::memcpy(gNetworkPlayers[globalIndex].palette.colors, palette.colors, 24);
-
-            if (gNetworkSystem->requireServerBroadcast()) {
-                auto outPkt = CoopPacket::createOutgoing(sock, addr, peerId, PACKET_PLAYER_SETTINGS, true, PLMT_NONE);
-                outPkt.write<uint8_t>(globalIndex);
-                outPkt.write<std::string>(name, 64);
-                outPkt.write<uint8_t>(model);
-                for (int i = 0; i < 24; i++) {
-                    outPkt.write<uint8_t>(palette.colors[i]);
-                }
-                outPkt.sendToAll();
-            }
             break;
         }
-        case PACKET_OBJECT:
-            forwardPacket(PACKET_OBJECT, true, PLMT_AREA, senderGlobalIndex);
-            break;
-        case PACKET_COLLECT_COIN:
-            forwardPacket(PACKET_COLLECT_COIN, true, PLMT_LEVEL, senderGlobalIndex);
-            break;
-        case PACKET_COLLECT_STAR:
-            forwardPacket(PACKET_COLLECT_STAR, true, PLMT_NONE, senderGlobalIndex);
-            break;
-        case PACKET_COLLECT_ITEM:
-            forwardPacket(PACKET_COLLECT_ITEM, true, PLMT_AREA, senderGlobalIndex);
-            break;
-        case PACKET_SPAWN_OBJECTS:
-            forwardPacket(PACKET_SPAWN_OBJECTS, true, PLMT_AREA, senderGlobalIndex);
-            break;
-        case PACKET_SPAWN_STAR:
-            forwardPacket(PACKET_SPAWN_STAR, true, PLMT_AREA, senderGlobalIndex);
-            break;
-        case PACKET_SPAWN_STAR_NLE:
-            forwardPacket(PACKET_SPAWN_STAR_NLE, true, PLMT_AREA, senderGlobalIndex);
-            break;
-        case PACKET_LUA_SYNC_TABLE:
-            forwardPacket(PACKET_LUA_SYNC_TABLE, true, PLMT_NONE, senderGlobalIndex);
-            break;
-        case PACKET_LEVEL_RESPAWN_INFO:
-            forwardPacket(PACKET_LEVEL_RESPAWN_INFO, true, PLMT_NONE);
-            break;
         case PACKET_SAVE_FILE: {
             int32_t fileIndex = read<int32_t>();
             uint8_t backupSlot = read<uint8_t>();
@@ -637,7 +624,6 @@ void CoopPacket::handleInternal() {
         case PACKET_PING: {
             uint8_t globalIndex = read<uint8_t>();
             if (!isValidGlobalIndex(globalIndex)) break;
-
             double timestamp = read<double>();
 
             auto outPkt = CoopPacket::createOutgoing(sock, addr, peerId, PACKET_PONG, false, PLMT_NONE);
@@ -647,6 +633,14 @@ void CoopPacket::handleInternal() {
             Logging::log("SERVER", "Received ping from {}", gNetworkPlayers[globalIndex].name);
 
             outPkt.sendBack();
+            break;
+        }
+        case PACKET_PONG: {
+            uint8_t globalIndex = read<uint8_t>();
+            if (!isValidGlobalIndex(globalIndex)) break;
+            double timestamp = read<double>();
+
+            Logging::log("SERVER", "Received pong from {}", gNetworkPlayers[globalIndex].name);
             break;
         }
         case PACKET_CHANGE_LEVEL: {
@@ -725,19 +719,6 @@ void CoopPacket::handleInternal() {
             np->currActNum = actNum;
             np->currLevelNum = levelNum;
             np->currAreaIndex = areaIndex;
-
-            if (gNetworkSystem->requireServerBroadcast()) {
-                auto outPkt = CoopPacket::createOutgoing(sock, addr, peerId, PACKET_LEVEL_AREA_INFORM, true, PLMT_NONE);
-                outPkt.write<uint16_t>(seq);
-                outPkt.write<uint8_t>(globalIndex);
-                outPkt.write<int16_t>(courseNum);
-                outPkt.write<int16_t>(actNum);
-                outPkt.write<int16_t>(levelNum);
-                outPkt.write<int16_t>(areaIndex);
-                outPkt.write<uint8_t>(levelSyncValid);
-                outPkt.write<uint8_t>(areaSyncValid);
-                outPkt.sendToAll();
-            }
             break;
         }
         case PACKET_CHAT: {
@@ -750,13 +731,6 @@ void CoopPacket::handleInternal() {
             }
             std::string msg = read<std::string>(msgLen);
             Logging::log("SERVER", "Received message from {}: {}", gNetworkPlayers[globalIndex].name, msg);
-            if (gNetworkSystem->requireServerBroadcast()) {
-                auto outPkt = CoopPacket::createOutgoing(sock, addr, peerId, PACKET_CHAT, true, PLMT_NONE);
-                outPkt.write<uint8_t>(globalIndex);
-                outPkt.write<uint16_t>(msg.length());
-                outPkt.write<std::string>(msg, msg.length());
-                outPkt.sendToAll();
-            }
             break;
         }
         case PACKET_LEAVING: {

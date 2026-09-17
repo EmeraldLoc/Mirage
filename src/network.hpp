@@ -31,6 +31,7 @@ struct NetworkPlayer {
     uint8_t currAreaSyncValid = 0;
     int64_t networkId = 0;
     uint8_t modelIndex = 0;
+    uint32_t ping = 0;
     PlayerPalette palette{};
     std::string name;
     std::string discordId;

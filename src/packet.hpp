@@ -90,7 +90,6 @@ private:
 
     CoopPacket(socket_t s, sockaddr_in a, uint64_t pId, uint8_t pType, bool reliable, uint8_t levelMatchType, int asGlobalIndex);
 
-    void forwardPacket(uint8_t pType, bool reliable = true, uint8_t levelMatchType = PLMT_NONE, int asGlobalIndex = 0);
     std::vector<uint8_t> compressAndHash();
     void handleInternal();
     void processOrderedAndHandle();
@@ -117,6 +116,8 @@ public:
 
     CoopPacket(socket_t s, sockaddr_in a, uint64_t pId, const uint8_t *compData, size_t compLen);
     static CoopPacket createOutgoing(socket_t s, sockaddr_in a, uint64_t pId, uint8_t pType, bool reliable = false, uint8_t levelMatchType = PLMT_NONE, int asGlobalIndex = 0);
+    
+    CoopPacket duplicate();
 
     template<typename T>
     T read(size_t length = 0) {

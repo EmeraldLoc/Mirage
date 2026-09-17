@@ -1,10 +1,18 @@
 #include <cstring>
+#include <csignal>
 #include "config.hpp"
 #include "network.hpp"
 #include "lobby.hpp"
 #include "savefile.hpp"
+#include "server.hpp"
+
+static void handleSignal(int sig) {
+    gServerRunning.store(false);
+}
 
 int main() {
+    std::signal(SIGINT, handleSignal);
+    std::signal(SIGTERM, handleSignal);
     gServerConfig.read(SERVER_CONFIGFILE);
 
     gNetworkPlayers[0].type = NPT_LOCAL;

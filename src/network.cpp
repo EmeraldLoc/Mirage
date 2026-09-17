@@ -272,6 +272,7 @@ bool networkInit(NetworkSystemType type, int port) {
 
 void networkShutdown() {
     if (gNetworkSystem) {
+        Logging::log("SERVER", "Shutting down");
         gNetworkSystem->shutdown();
         gNetworkSystem.reset();
     }

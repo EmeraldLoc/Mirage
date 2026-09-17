@@ -4,6 +4,8 @@
 #include "log.hpp"
 #include "config.hpp"
 
+std::atomic<bool> gServerRunning{true};
+
 CoopServer::CoopServer(int p) : port(p) {}
 
 void CoopServer::runLoop() {
@@ -13,7 +15,7 @@ void CoopServer::runLoop() {
         return;
     }
 
-    while (true) {
+    while (gServerRunning) {
         if (gNetworkSystem) {
             gNetworkSystem->update();
         }

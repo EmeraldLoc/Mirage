@@ -22,6 +22,7 @@ void ServerConfig::read(const std::string &filename) {
     networkSystem = data.value("networkSystem", networkSystem);
     version = data.value("version", version);
     name = data.value("name", name);
+    mode = data.value("mode", mode);
     description = data.value("description", description);
     password = data.value("password", password);
     savefileIndex = data.value("savefileIndex", savefileIndex);
@@ -35,7 +36,7 @@ void ServerConfig::read(const std::string &filename) {
     nametags = data.value("nametags", nametags);
     maxPlayers = data.value("maxPlayers", maxPlayers);
     pauseAnywhere = data.value("pauseAnywhere", pauseAnywhere);
-    
+
     mods.clear();
     if (data.contains("mods") && data["mods"].is_array()) {
         for (auto &modPathObj : data["mods"]) {
@@ -58,6 +59,7 @@ void ServerConfig::write(const std::string &filename) {
         {"networkSystem", networkSystem},
         {"version", version},
         {"name", name},
+        {"mode", mode},
         {"description", description},
         {"password", password},
         {"savefileIndex", savefileIndex},

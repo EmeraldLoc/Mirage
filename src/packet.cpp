@@ -727,11 +727,9 @@ void CoopPacket::handleInternal() {
             uint8_t globalIndex = read<uint8_t>();
             if (!isValidGlobalIndex(globalIndex)) break;
 
-            if (gNetworkSystem->requireServerBroadcast()) {
-                auto outPkt = CoopPacket::createOutgoing(sock, addr, peerId, PACKET_LEAVING, true, PLMT_NONE);
-                outPkt.write<uint8_t>(globalIndex);
-                outPkt.sendToAll();
-            }
+            auto outPkt = CoopPacket::createOutgoing(sock, addr, peerId, PACKET_LEAVING, true, PLMT_NONE);
+            outPkt.write<uint8_t>(globalIndex);
+            outPkt.sendToAll();
 
             Logging::log("SERVER", "Player {} disconnected", gNetworkPlayers[globalIndex].name);
             gNetworkPlayers[globalIndex].connected = false;

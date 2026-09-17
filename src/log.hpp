@@ -37,7 +37,7 @@ namespace Logging {
                 g = std::stoi(std::string(2, hex[1]), nullptr, 16);
                 b = std::stoi(std::string(2, hex[2]), nullptr, 16);
             } else if (match[3].matched) {
-                r = g = b = 0xdc;
+                r = g = b = 0xff;
             }
 
             std::ostringstream ansiSeq;

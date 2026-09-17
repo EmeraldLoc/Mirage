@@ -83,6 +83,17 @@ CoopPacket::CoopPacket(socket_t s, sockaddr_in a, uint64_t pId, const uint8_t *c
         actNum = read<uint8_t>();
         levelNum = read<int16_t>();
     }
+
+    /*if (destGlobalId != 0 && destGlobalId != PACKET_DESTINATION_BROADCAST && pktType != PACKET_MOD_LIST_REQUEST && pktType != PACKET_ACK) {
+        uint8_t plmt = PLMT_NONE;
+        if (levelAreaMustMatch) {
+            plmt = PLMT_AREA;
+        } else if (levelMustMatch) {
+            plmt = PLMT_LEVEL;
+        }
+        auto outPkt = CoopPacket::createOutgoing(sock, addr, peerId, pktType, true, plmt);
+        outPkt.sendTo(destGlobalId);
+    }*/
 }
 
 CoopPacket::CoopPacket(socket_t s, sockaddr_in a, uint64_t pId, uint8_t pType, bool reliable, uint8_t levelMatchType, int asGlobalIndex) : sock(s), addr(a), peerId(pId), pktType(pType), isReliable(reliable) {
@@ -651,17 +662,42 @@ void CoopPacket::handleInternal() {
                 np->currActNum = actNum;
                 np->currLevelNum = levelNum;
                 np->currAreaIndex = areaIndex;
-                np->currLevelSyncValid = true;
-                np->currAreaSyncValid = true;
 
-                auto outPkt = CoopPacket::createOutgoing(sock, addr, peerId, PACKET_SYNC_VALID, true, PLMT_NONE);
-                outPkt.write<int16_t>(courseNum);
-                outPkt.write<int16_t>(actNum);
-                outPkt.write<int16_t>(levelNum);
-                outPkt.write<int16_t>(areaIndex);
-                outPkt.write<uint8_t>(0);
-                outPkt.write<uint8_t>(np->globalIndex);
-                outPkt.sendBack();
+                NetworkPlayer *npInArea = getNetworkPlayerFromArea(courseNum, actNum, levelNum, areaIndex);
+                NetworkPlayer *npInLevel = getNetworkPlayerFromLevel(courseNum, actNum, levelNum);
+                NetworkPlayer *npAny = (npInArea == nullptr) ? npInLevel : npInArea;
+
+                if (npAny == nullptr || np->currActNum == 99) {
+                    np->currLevelSyncValid = true;
+                    np->currAreaSyncValid = true;
+
+                    auto outPkt = CoopPacket::createOutgoing(sock, addr, peerId, PACKET_SYNC_VALID, true, PLMT_NONE);
+                    outPkt.write<int16_t>(courseNum);
+                    outPkt.write<int16_t>(actNum);
+                    outPkt.write<int16_t>(levelNum);
+                    outPkt.write<int16_t>(areaIndex);
+                    outPkt.write<uint8_t>(0);
+                    outPkt.write<uint8_t>(np->globalIndex);
+                    outPkt.sendBack();
+                    return;
+                }
+
+                if (npAny == npInArea) {
+                    auto outPkt = CoopPacket::createOutgoing(sock, addr, peerId, PACKET_LEVEL_AREA_REQUEST, true, PLMT_NONE);
+                    outPkt.write<uint8_t>(np->globalIndex);
+                    outPkt.write<int16_t>(np->currCourseNum);
+                    outPkt.write<int16_t>(np->currActNum);
+                    outPkt.write<int16_t>(np->currLevelNum);
+                    outPkt.write<int16_t>(np->currAreaIndex);
+                    outPkt.sendTo(npAny->globalIndex);
+                } else {
+                    auto outPkt = CoopPacket::createOutgoing(sock, addr, peerId, PACKET_LEVEL_REQUEST, true, PLMT_NONE);
+                    outPkt.write<uint8_t>(np->globalIndex);
+                    outPkt.write<int16_t>(np->currCourseNum);
+                    outPkt.write<int16_t>(np->currActNum);
+                    outPkt.write<int16_t>(np->currLevelNum);
+                    outPkt.sendTo(npAny->globalIndex);
+                }
             }
             break;
         }

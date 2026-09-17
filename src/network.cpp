@@ -5,6 +5,7 @@
 #include <chrono>
 #include <algorithm>
 #include <cstring>
+#include <thread>
 
 std::array<NetworkPlayer, MAX_PLAYERS> gNetworkPlayers{};
 std::array<sockaddr_in, MAX_PLAYERS> gNetworkPlayerSockets{};
@@ -26,6 +27,32 @@ NetworkPlayer *getNetworkPlayerFromPeerId(uint64_t peerId) {
         if (gNetworkPlayers[i].connected && gNetworkPlayerPeerIds[i] == peerId) {
             return &gNetworkPlayers[i];
         }
+    }
+    return nullptr;
+}
+
+NetworkPlayer *getNetworkPlayerFromLevel(int16_t courseNum, int16_t actNum, int16_t levelNum) {
+    for (auto &np : gNetworkPlayers) {
+        if (!np.connected)                 { continue; }
+        if (!np.currLevelSyncValid)        { continue; }
+        if (np.currCourseNum != courseNum) { continue; }
+        if (np.currActNum    != actNum)    { continue; }
+        if (np.currLevelNum  != levelNum)  { continue; }
+        return &np;
+    }
+    return nullptr;
+}
+
+NetworkPlayer *getNetworkPlayerFromArea(int16_t courseNum, int16_t actNum, int16_t levelNum, int16_t areaIndex) {
+    for (auto &np : gNetworkPlayers) {
+        if (!np.connected)                 { continue; }
+        if (!np.currLevelSyncValid)        { continue; }
+        if (!np.currAreaSyncValid)         { continue; }
+        if (np.currCourseNum != courseNum) { continue; }
+        if (np.currActNum    != actNum)    { continue; }
+        if (np.currLevelNum  != levelNum)  { continue; }
+        if (np.currAreaIndex != areaIndex) { continue; }
+        return &np;
     }
     return nullptr;
 }
@@ -211,6 +238,7 @@ void CoopNetNetworkSystem::update() {
         }
     }
     updateReliablePackets();
+    std::this_thread::sleep_for(std::chrono::milliseconds(33));
 }
 
 void CoopNetNetworkSystem::sendTo(const sockaddr_in &addr, uint64_t peerId, const uint8_t *data, size_t len) {

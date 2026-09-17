@@ -277,9 +277,9 @@ void CoopPacket::handle() {
     }
 
     if (isOrdered) {
-        processOrderedAndHandle();
+        processOrdered();
     } else {
-        handleInternal();
+        execute();
     }
 
     if (requestBroadcast && gNetworkSystem->requireServerBroadcast()) {
@@ -288,7 +288,7 @@ void CoopPacket::handle() {
     }
 }
 
-void CoopPacket::processOrderedAndHandle() {
+void CoopPacket::processOrdered() {
     std::pair<uint8_t, uint16_t> key = {orderedFromGlobalId, orderedGroupId};
     auto &state = gOrderedStates[key];
 
@@ -300,13 +300,13 @@ void CoopPacket::processOrderedAndHandle() {
 
     auto it = state.queuedPackets.begin();
     while (it != state.queuedPackets.end() && it->first == state.processSeqId) {
-        it->second.handleInternal();
+        it->second.execute();
         it = state.queuedPackets.erase(it);
         state.processSeqId++;
     }
 }
 
-void CoopPacket::handleInternal() {
+void CoopPacket::execute() {
     NetworkPlayer *senderNp = gNetworkSystem ? gNetworkSystem->getPlayerFromSender(addr, peerId) : nullptr;
     uint8_t senderGlobalIndex = senderNp ? senderNp->globalIndex : 0;
 

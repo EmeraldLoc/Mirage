@@ -91,8 +91,8 @@ private:
     CoopPacket(socket_t s, sockaddr_in a, uint64_t pId, uint8_t pType, bool reliable, uint8_t levelMatchType, int asGlobalIndex);
 
     std::vector<uint8_t> compressAndHash();
-    void handleInternal();
-    void processOrderedAndHandle();
+    void execute();
+    void processOrdered();
     void setOrderedData();
 public:
     uint8_t pktType = 0;

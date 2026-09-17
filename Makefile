@@ -68,4 +68,4 @@ $(BUILD_DIR):
 clean:
 	rm -rf $(BUILD_DIR)
 
-.PHONY: all sign clean
+.PHONY: all clean

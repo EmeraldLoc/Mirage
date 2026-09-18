@@ -22,6 +22,7 @@ void ServerConfig::read(const std::string &filename) {
     networkSystem = data.value("networkSystem", networkSystem);
     version = data.value("version", version);
     name = data.value("name", name);
+    game = data.value("game", game);
     mode = data.value("mode", mode);
     description = data.value("description", description);
     password = data.value("password", password);
@@ -58,6 +59,7 @@ void ServerConfig::write(const std::string &filename) {
         {"port", port},
         {"networkSystem", networkSystem},
         {"version", version},
+        {"game", game},
         {"name", name},
         {"mode", mode},
         {"description", description},

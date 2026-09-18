@@ -232,7 +232,7 @@ void CoopNetNetworkSystem::update() {
     coopnet_update();
     if (needsLobbyCreate && localUserId != 0) {
         needsLobbyCreate = false;
-        CoopNetRc rc = coopnet_lobby_create("sm64coopdx", gServerConfig.version.c_str(), gServerConfig.name.c_str(), gServerConfig.mode.c_str(), 16, gServerConfig.password.c_str(), gServerConfig.description.c_str());
+        CoopNetRc rc = coopnet_lobby_create(gServerConfig.game.c_str(), gServerConfig.version.c_str(), gServerConfig.name.c_str(), gServerConfig.mode.c_str(), 16, gServerConfig.password.c_str(), gServerConfig.description.c_str());
         if (rc == COOPNET_OK) {
             Logging::log("NETWORK", "Created CoopNet lobby successfully");
         }
